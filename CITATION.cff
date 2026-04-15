@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "xrd_profile: XRD peak profile analysis toolkit"
+version: 0.1.0
+date-released: 2026-04-14
+authors:
+  - family-names: Izawa
+    given-names: Matthew R. M.
+    orcid: https://orcid.org/0000-0001-5456-2912
+    affiliation: Institute for Planetary Materials, Okayama University
+license: MIT
+repository-code: https://github.com/matthewizawa/xrd_profile
+abstract: >-
+  A Python toolkit for quantitative analysis of powder X-ray diffraction
+  peak profiles, providing Williamson-Hall, Warren-Averbach, Scherrer,
+  and pair distribution function methods with reference-guided peak
+  detection and wavelength-independent reciprocal-space formulations.
+  Adapted in part from crystallite_size_calculator by Dinga Wonanke.
+keywords:
+  - X-ray diffraction
+  - peak profile analysis
+  - Williamson-Hall
+  - Warren-Averbach
+  - pair distribution function
+  - crystallite size
+  - microstrain
+references:
+  - type: software
+    title: crystallite_size_calculator
+    authors:
+      - family-names: Wonanke
+        given-names: Dinga
+    repository-code: https://github.com/bafgreat/crystallite_size_calculator

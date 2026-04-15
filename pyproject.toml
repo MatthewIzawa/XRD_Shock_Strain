@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xrd_profile"
+version = "0.1.0"
+description = "XRD peak profile analysis toolkit: Williamson-Hall, Warren-Averbach, Scherrer, and pair distribution function methods"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "Matthew R. M. Izawa", email = "matthew.izawa@gmail.com"},
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/matthewizawa/xrd_profile"
