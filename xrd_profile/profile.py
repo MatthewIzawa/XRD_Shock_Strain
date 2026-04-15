@@ -70,32 +70,53 @@ class XRDProfile:
 
     def guided_williamson_hall(self, ref_d, tolerance_d=0.03,
                                n_sigma=3.0, min_fwhm_steps=3,
-                               correct_offset=True):
+                               correct_offset=True,
+                               other_phase_d=None,
+                               other_phase_names=None,
+                               overlap_tol_deg=0.15,
+                               min_quality=0.3,
+                               quality_weights=None,
+                               weighted_regression=True,
+                               sample_flags=None,
+                               export_path=None,
+                               **kwargs):
         """
-        Reference-guided Williamson-Hall in reciprocal space.
+        Reference-guided Williamson-Hall with cross-phase overlap
+        rejection, quality scoring, weighted regression, and
+        reliability classification.
 
         Parameters
         ----------
         ref_d : np.ndarray
             Reference d-spacings sorted by decreasing intensity.
-        tolerance_d : float
-            d-spacing matching tolerance (angstroms).
-        n_sigma : float
-            Noise cutoff (multiples of sigma).
-        min_fwhm_steps : int
-            Minimum FWHM in step-size units.
-        correct_offset : bool
-            Estimate and apply zero-point offset.
+        other_phase_d : list of np.ndarray or None
+            d-spacings for interfering phases (excluded from fit).
+        sample_flags : dict or None
+            e.g. {'maskelynite_present': True}. Triggers warnings.
+        export_path : str or None
+            CSV path for manual validation export.
+
+        See guided_williamson_hall() for all parameters.
 
         Returns
         -------
-        dict with strain, crystallite_size, r_squared, peaks, etc.
+        dict with strain, crystallite_size, r_squared, reliability,
+        warnings, peak_quality, etc.
         """
         from .williamson_hall import guided_williamson_hall
         return guided_williamson_hall(
             self.two_theta, self.intensity, ref_d, self.wavelength,
             tolerance_d=tolerance_d, n_sigma=n_sigma,
-            min_fwhm_steps=min_fwhm_steps, correct_offset=correct_offset
+            min_fwhm_steps=min_fwhm_steps, correct_offset=correct_offset,
+            other_phase_d=other_phase_d,
+            other_phase_names=other_phase_names,
+            overlap_tol_deg=overlap_tol_deg,
+            min_quality=min_quality,
+            quality_weights=quality_weights,
+            weighted_regression=weighted_regression,
+            sample_flags=sample_flags,
+            export_path=export_path,
+            **kwargs
         )
 
     def guided_warren_averbach(self, ref_peaks, tolerance_d=0.03,

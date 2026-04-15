@@ -24,7 +24,9 @@ from scipy.stats import linregress
 
 from .conversions import two_theta_to_d, fwhm_to_deltaK, two_theta_to_K
 from .noise import estimate_noise, estimate_zero_offset
-from .peak_detection import estimate_fwhm_simple, estimate_fwhm_voigt, find_peaks_guided
+from .peak_detection import (estimate_fwhm_simple, estimate_fwhm_voigt,
+                             find_peaks_guided, check_cross_phase_overlap,
+                             score_peak_quality)
 
 
 def williamson_hall(two_theta, intensities, wavelength,
@@ -236,46 +238,58 @@ def williamson_hall_reciprocal(two_theta, intensities, wavelength,
 
 def guided_williamson_hall(two_theta, intensity, ref_d, wavelength,
                            tolerance_d=0.03, n_sigma=3.0,
-                           min_fwhm_steps=3, correct_offset=True):
+                           min_fwhm_steps=3, correct_offset=True,
+                           other_phase_d=None, other_phase_names=None,
+                           overlap_tol_deg=0.15,
+                           min_quality=0.3,
+                           quality_weights=None,
+                           weighted_regression=True,
+                           min_peaks_reliable=5,
+                           min_r2_reliable=0.3,
+                           min_r2_marginal=0.05,
+                           sample_flags=None,
+                           export_path=None):
     """
-    Reference-guided Williamson-Hall analysis in reciprocal space.
-
-    Combines zero-point offset correction, reference-guided peak detection
-    with noise cutoff, and DeltaK-vs-K linear regression.
+    Reference-guided Williamson-Hall analysis in reciprocal space
+    with cross-phase overlap rejection, peak quality scoring,
+    weighted regression, and reliability classification.
 
     Parameters
     ----------
-    two_theta : np.ndarray
-        2-theta array (degrees).
-    intensity : np.ndarray
-        Intensity array.
-    ref_d : np.ndarray
-        Reference mineral d-spacings (angstroms), sorted by
-        decreasing intensity.
-    wavelength : float
-        X-ray wavelength (angstroms).
-    tolerance_d : float
-        d-spacing matching tolerance (angstroms).
-    n_sigma : float
-        Noise cutoff in units of sigma.
-    min_fwhm_steps : int
-        Minimum FWHM in step-size units.
-    correct_offset : bool
-        If True, estimate and apply zero-point offset correction.
+    two_theta, intensity, ref_d, wavelength, tolerance_d, n_sigma,
+    min_fwhm_steps, correct_offset :
+        Same as before (see find_peaks_guided).
+    other_phase_d : list of np.ndarray or None
+        d-spacings for each interfering phase. Peaks overlapping
+        with these are excluded.
+    other_phase_names : list of str or None
+        Names for the interfering phases (for reporting).
+    overlap_tol_deg : float
+        Minimum angular separation from other-phase peaks (degrees).
+    min_quality : float
+        Minimum composite quality score [0, 1] for inclusion.
+    quality_weights : dict or None
+        Weights for quality sub-scores.
+    weighted_regression : bool
+        Weight the regression by peak quality scores.
+    min_peaks_reliable : int
+        Minimum peaks for 'reliable' classification.
+    min_r2_reliable : float
+        Minimum R-squared for 'reliable'.
+    min_r2_marginal : float
+        Minimum R-squared for 'marginal'.
+    sample_flags : dict or None
+        Keys: 'multiple_plagioclase_populations' (bool),
+        'maskelynite_present' (bool), 'maskelynite_fraction' (float).
+    export_path : str or None
+        Path for CSV validation export.
 
     Returns
     -------
-    dict with keys:
-        strain : float — microstrain (slope of DeltaK vs K)
-        crystallite_size : float — size D in angstroms (1/intercept)
-        r_squared : float — R-squared of linear fit
-        n_peaks : int — number of peaks used
-        zero_offset : float — applied zero-point correction (degrees)
-        peaks : dict — full output from find_peaks_guided
-        K : np.ndarray — reciprocal variable for each peak
-        deltaK : np.ndarray — broadening in reciprocal space
-        slope : float
-        intercept : float
+    dict with all original keys plus:
+        n_peaks_total, n_peaks_used, n_rejected_overlap,
+        n_rejected_quality, reliability, reliability_reasons,
+        warnings, peak_quality, regression_weights, residuals.
     """
     # Zero-point offset
     if correct_offset:
@@ -290,29 +304,222 @@ def guided_williamson_hall(two_theta, intensity, ref_d, wavelength,
                               tolerance_d=tolerance_d, n_sigma=n_sigma,
                               min_fwhm_steps=min_fwhm_steps)
 
+    n_total = len(peaks['d_obs'])
+
+    # Cross-phase overlap rejection
+    n_rejected_overlap = 0
+    if other_phase_d is not None and len(other_phase_d) > 0:
+        peaks = check_cross_phase_overlap(peaks, other_phase_d, wavelength,
+                                          overlap_tol_deg=overlap_tol_deg)
+        n_rejected_overlap = peaks['n_rejected_overlap']
+
+    # Peak quality scoring
+    peaks = score_peak_quality(peaks, tt_corr, intensity, wavelength,
+                               tolerance_d=tolerance_d,
+                               weights=quality_weights)
+
+    # Build inclusion mask
+    quality = peaks['quality_score']
+    include = quality >= min_quality
+    if 'cross_phase_overlap' in peaks:
+        include = include & ~peaks['cross_phase_overlap']
+
+    n_rejected_quality = int(np.sum((quality < min_quality)
+                                    & (~peaks.get('cross_phase_overlap',
+                                                  np.zeros(n_total, dtype=bool)))))
+    n_used = int(np.sum(include))
+
+    # Prepare result template
+    warnings_list = []
+    reliability_reasons = []
+
     result = {
         'strain': np.nan, 'crystallite_size': np.nan,
-        'r_squared': np.nan, 'n_peaks': len(peaks['d_obs']),
-        'zero_offset': offset, 'peaks': peaks,
+        'r_squared': np.nan,
+        'n_peaks': n_used,
+        'n_peaks_total': n_total,
+        'n_peaks_used': n_used,
+        'n_rejected_overlap': n_rejected_overlap,
+        'n_rejected_quality': n_rejected_quality,
+        'zero_offset': offset,
+        'peaks': peaks,
         'K': np.array([]), 'deltaK': np.array([]),
         'slope': np.nan, 'intercept': np.nan,
+        'reliability': 'unreliable',
+        'reliability_reasons': [],
+        'warnings': [],
+        'peak_quality': quality,
+        'regression_weights': np.array([]),
+        'residuals': np.array([]),
     }
 
-    if len(peaks['d_obs']) < 3:
+    # Sample suitability warnings
+    if sample_flags:
+        if sample_flags.get('multiple_plagioclase_populations', False):
+            warnings_list.append(
+                "Multiple plagioclase populations detected. W-H assumes "
+                "a single population; strain/size values represent a "
+                "convolution of distinct histories and may not be "
+                "physically meaningful.")
+        if sample_flags.get('maskelynite_present', False):
+            warnings_list.append(
+                "Maskelynite (amorphous plagioclase) is present. Broad "
+                "amorphous scattering may contaminate FWHM measurements "
+                "of remaining crystalline peaks.")
+            frac = sample_flags.get('maskelynite_fraction', 0)
+            if frac > 0.5:
+                warnings_list.append(
+                    f"Maskelynite fraction ({frac:.0%}) exceeds 50%. "
+                    "W-H of remaining crystalline peaks is likely not "
+                    "representative of the original material.")
+
+    result['warnings'] = warnings_list
+
+    if n_used < 3:
+        reliability_reasons.append(
+            f"Only {n_used} peaks after filtering (need >= 3 for fit)")
+        result['reliability_reasons'] = reliability_reasons
+        _export_wh_csv(export_path, peaks, include, result, wavelength)
         return result
 
-    K_vals = 1.0 / peaks['d_obs']
-    deltaK_vals = fwhm_to_deltaK(peaks['fwhm'], peaks['two_theta_obs'],
-                                  wavelength)
+    # Extract included peaks
+    K_all = 1.0 / peaks['d_obs']
+    dK_all = fwhm_to_deltaK(peaks['fwhm'], peaks['two_theta_obs'],
+                             wavelength)
 
-    slope, intercept, r_value, _, _ = linregress(K_vals, deltaK_vals)
+    K_vals = K_all[include]
+    deltaK_vals = dK_all[include]
+    w = quality[include]
 
-    result['strain'] = slope
-    result['crystallite_size'] = (1.0 / intercept) if intercept > 0 else np.nan
-    result['r_squared'] = r_value ** 2
-    result['slope'] = slope
-    result['intercept'] = intercept
-    result['K'] = K_vals
-    result['deltaK'] = deltaK_vals
+    # Regression
+    if weighted_regression and np.sum(w) > 0:
+        coeffs = np.polyfit(K_vals, deltaK_vals, 1, w=w)
+        slope, intercept = coeffs[0], coeffs[1]
+
+        y_pred = slope * K_vals + intercept
+        w_mean = np.average(deltaK_vals, weights=w)
+        ss_res = np.sum(w * (deltaK_vals - y_pred) ** 2)
+        ss_tot = np.sum(w * (deltaK_vals - w_mean) ** 2)
+        r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0.0
+    else:
+        slope, intercept, r_value, _, _ = linregress(K_vals, deltaK_vals)
+        r_squared = r_value ** 2
+        y_pred = slope * K_vals + intercept
+
+    residuals = deltaK_vals - y_pred
+
+    strain = slope
+    crystallite_size = (1.0 / intercept) if intercept > 0 else np.nan
+
+    # Reliability classification
+    is_reliable = True
+
+    if r_squared < min_r2_reliable:
+        is_reliable = False
+        reliability_reasons.append(
+            f"R-squared = {r_squared:.3f} < {min_r2_reliable} threshold")
+
+    if n_used < min_peaks_reliable:
+        is_reliable = False
+        reliability_reasons.append(
+            f"Only {n_used} peaks used (need {min_peaks_reliable} "
+            f"for reliable)")
+
+    if slope < 0:
+        is_reliable = False
+        reliability_reasons.append(
+            f"Negative slope ({slope:.5f}) implies negative strain")
+
+    if intercept <= 0:
+        is_reliable = False
+        reliability_reasons.append(
+            f"Non-positive intercept ({intercept:.5f}) implies "
+            "unphysical crystallite size")
+
+    if is_reliable:
+        reliability = 'reliable'
+    elif r_squared >= min_r2_marginal and n_used >= 3:
+        reliability = 'marginal'
+    else:
+        reliability = 'unreliable'
+
+    if warnings_list:
+        if reliability == 'reliable':
+            reliability = 'marginal'
+            reliability_reasons.append(
+                "Downgraded due to sample suitability warnings")
+
+    result.update({
+        'strain': strain,
+        'crystallite_size': crystallite_size,
+        'r_squared': r_squared,
+        'slope': slope,
+        'intercept': intercept,
+        'K': K_vals,
+        'deltaK': deltaK_vals,
+        'reliability': reliability,
+        'reliability_reasons': reliability_reasons,
+        'regression_weights': w,
+        'residuals': residuals,
+    })
+
+    _export_wh_csv(export_path, peaks, include, result, wavelength)
 
     return result
+
+
+def _export_wh_csv(export_path, peaks, include_mask, result, wavelength):
+    """Write per-peak data to CSV for manual validation."""
+    if export_path is None:
+        return
+
+    n = len(peaks['d_obs'])
+    if n == 0:
+        return
+
+    K_all = 1.0 / peaks['d_obs']
+    dK_all = fwhm_to_deltaK(peaks['fwhm'], peaks['two_theta_obs'],
+                             wavelength)
+
+    with open(export_path, 'w') as f:
+        f.write(f"# Williamson-Hall peak validation export\n")
+        f.write(f"# Wavelength: {wavelength} angstroms\n")
+        f.write(f"# Zero offset: {result['zero_offset']:.4f} deg\n")
+        f.write(f"# Reliability: {result['reliability']}\n")
+        for reason in result.get('reliability_reasons', []):
+            f.write(f"# Reason: {reason}\n")
+        for warning in result.get('warnings', []):
+            f.write(f"# WARNING: {warning}\n")
+        f.write(f"# Peaks total: {result['n_peaks_total']}, "
+                f"used: {result['n_peaks_used']}, "
+                f"rejected overlap: {result['n_rejected_overlap']}, "
+                f"rejected quality: {result['n_rejected_quality']}\n")
+        f.write("two_theta_obs,d_obs,d_ref,d_shift,fwhm,snr,"
+                "quality_score,snr_score,isolation_score,"
+                "symmetry_score,d_match_score,"
+                "cross_phase_overlap,included_in_fit,K,deltaK\n")
+
+        overlap = peaks.get('cross_phase_overlap',
+                           np.zeros(n, dtype=bool))
+        for i in range(n):
+            qs = peaks.get('quality_score', np.zeros(n))
+            ss = peaks.get('snr_score', np.zeros(n))
+            is_ = peaks.get('isolation_score', np.zeros(n))
+            sy = peaks.get('symmetry_score', np.zeros(n))
+            dm = peaks.get('d_match_score', np.zeros(n))
+
+            f.write(f"{peaks['two_theta_obs'][i]:.4f},"
+                    f"{peaks['d_obs'][i]:.4f},"
+                    f"{peaks['d_ref'][i]:.4f},"
+                    f"{peaks['d_shift'][i]:.5f},"
+                    f"{peaks['fwhm'][i]:.5f},"
+                    f"{peaks['snr'][i]:.2f},"
+                    f"{qs[i]:.4f},"
+                    f"{ss[i]:.4f},"
+                    f"{is_[i]:.4f},"
+                    f"{sy[i]:.4f},"
+                    f"{dm[i]:.4f},"
+                    f"{int(overlap[i])},"
+                    f"{int(include_mask[i])},"
+                    f"{K_all[i]:.5f},"
+                    f"{dK_all[i]:.6f}\n")

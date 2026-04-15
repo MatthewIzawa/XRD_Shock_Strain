@@ -373,3 +373,212 @@ def find_peaks_guided(two_theta, intensity, ref_d, wavelength,
     results['n_rejected_dup'] = n_rejected_dup
 
     return results
+
+
+# ============================================================
+# Cross-phase overlap detection and peak quality scoring
+# ============================================================
+
+def _measure_peak_asymmetry(two_theta, intensity, peak_tt, fwhm,
+                            expand_fwhm=2.5):
+    """
+    Measure the asymmetry of a single peak as the ratio of left/right
+    integrated area above local background.
+
+    Returns
+    -------
+    asymmetry : float
+        0.0 = perfectly symmetric, 1.0 = completely one-sided.
+    """
+    step = np.median(np.diff(two_theta))
+    half_width = int(expand_fwhm * fwhm / step)
+    centre_idx = np.argmin(np.abs(two_theta - peak_tt))
+    lo = max(0, centre_idx - half_width)
+    hi = min(len(intensity), centre_idx + half_width + 1)
+
+    region = intensity[lo:hi].astype(float)
+    if len(region) < 5:
+        return 0.5
+
+    # Local background from edges
+    bg = np.mean([np.mean(region[:3]), np.mean(region[-3:])])
+    corrected = np.maximum(region - bg, 0)
+
+    local_peak = centre_idx - lo
+    if local_peak <= 0 or local_peak >= len(corrected) - 1:
+        return 0.5
+
+    left_area = np.sum(corrected[:local_peak])
+    right_area = np.sum(corrected[local_peak + 1:])
+    total = left_area + right_area
+    if total <= 0:
+        return 0.5
+
+    return abs(left_area - right_area) / total
+
+
+def check_cross_phase_overlap(peak_results, other_phase_d, wavelength,
+                              overlap_tol_deg=0.15):
+    """
+    Flag peaks that overlap with peaks from other mineral phases.
+
+    Parameters
+    ----------
+    peak_results : dict
+        Output from find_peaks_guided.
+    other_phase_d : list of np.ndarray
+        d-spacing arrays for each interfering phase
+        (e.g., [pyroxene_d, olivine_d]).
+    wavelength : float
+        X-ray wavelength (angstroms).
+    overlap_tol_deg : float
+        Minimum angular separation (degrees 2-theta) required.
+        Peaks closer than max(overlap_tol_deg, 1.5 * own_fwhm)
+        to any other-phase peak are flagged.
+
+    Returns
+    -------
+    dict
+        Copy of peak_results with added arrays:
+        - 'cross_phase_overlap' : bool array
+        - 'nearest_other_phase_deg' : float array
+        - 'n_rejected_overlap' : int
+    """
+    from .conversions import d_to_two_theta
+
+    # Convert all other-phase d-spacings to 2-theta
+    other_tt_all = []
+    for d_arr in other_phase_d:
+        tt_arr = d_to_two_theta(np.asarray(d_arr), wavelength)
+        tt_arr = tt_arr[~np.isnan(tt_arr)]
+        other_tt_all.append(tt_arr)
+    other_tt_combined = np.concatenate(other_tt_all) if other_tt_all else np.array([])
+
+    n_peaks = len(peak_results['two_theta_obs'])
+    overlap = np.zeros(n_peaks, dtype=bool)
+    nearest_deg = np.full(n_peaks, np.inf)
+
+    if len(other_tt_combined) > 0:
+        for i in range(n_peaks):
+            pk_tt = peak_results['two_theta_obs'][i]
+            pk_fwhm = peak_results['fwhm'][i]
+            dists = np.abs(other_tt_combined - pk_tt)
+            min_dist = np.min(dists)
+            nearest_deg[i] = min_dist
+
+            effective_tol = max(overlap_tol_deg, 1.5 * pk_fwhm)
+            if min_dist < effective_tol:
+                overlap[i] = True
+
+    result = dict(peak_results)
+    result['cross_phase_overlap'] = overlap
+    result['nearest_other_phase_deg'] = nearest_deg
+    result['n_rejected_overlap'] = int(np.sum(overlap))
+
+    return result
+
+
+def score_peak_quality(peak_results, two_theta, intensity, wavelength,
+                       tolerance_d=0.03,
+                       weights=None):
+    """
+    Compute a per-peak composite quality score.
+
+    Combines signal-to-noise ratio, isolation from neighbours,
+    peak symmetry, and d-spacing match accuracy into a single
+    score in [0, 1] for each detected peak.
+
+    Parameters
+    ----------
+    peak_results : dict
+        Output from find_peaks_guided (optionally with
+        cross_phase_overlap from check_cross_phase_overlap).
+    two_theta : np.ndarray
+        Full 2-theta array.
+    intensity : np.ndarray
+        Full intensity array.
+    wavelength : float
+        X-ray wavelength (angstroms).
+    tolerance_d : float
+        d-spacing tolerance used in peak detection (angstroms).
+    weights : dict or None
+        Relative weights for sub-scores. Defaults:
+        {'snr': 0.35, 'isolation': 0.25, 'symmetry': 0.20,
+         'd_match': 0.20}
+
+    Returns
+    -------
+    dict
+        Copy of peak_results with added arrays:
+        - 'quality_score' : float array in [0, 1]
+        - 'snr_score', 'isolation_score', 'symmetry_score',
+          'd_match_score' : float arrays in [0, 1]
+    """
+    if weights is None:
+        weights = {'snr': 0.35, 'isolation': 0.25,
+                   'symmetry': 0.20, 'd_match': 0.20}
+
+    n = len(peak_results['two_theta_obs'])
+    snr_scores = np.zeros(n)
+    isolation_scores = np.zeros(n)
+    symmetry_scores = np.zeros(n)
+    d_match_scores = np.zeros(n)
+
+    snr_ref = 20.0  # reference "good" SNR
+
+    for i in range(n):
+        # SNR score
+        snr_scores[i] = min(1.0, peak_results['snr'][i] / snr_ref)
+
+        # Isolation score
+        pk_tt = peak_results['two_theta_obs'][i]
+        pk_fwhm = peak_results['fwhm'][i]
+
+        # Distance to nearest same-phase peak
+        other_tt = np.delete(peak_results['two_theta_obs'], i)
+        if len(other_tt) > 0:
+            min_same = np.min(np.abs(other_tt - pk_tt))
+        else:
+            min_same = np.inf
+
+        # Distance to nearest other-phase peak (if available)
+        if 'nearest_other_phase_deg' in peak_results:
+            min_other = peak_results['nearest_other_phase_deg'][i]
+            min_neighbor = min(min_same, min_other)
+        else:
+            min_neighbor = min_same
+
+        isolation_scores[i] = min(1.0, min_neighbor / (3 * pk_fwhm)) \
+            if pk_fwhm > 0 else 0.0
+
+        # Symmetry score
+        asym = _measure_peak_asymmetry(two_theta, intensity, pk_tt, pk_fwhm)
+        symmetry_scores[i] = 1.0 - asym
+
+        # d-spacing match score
+        d_shift = abs(peak_results['d_shift'][i])
+        d_match_scores[i] = max(0.0, 1.0 - d_shift / tolerance_d) \
+            if tolerance_d > 0 else 1.0
+
+    # Composite
+    composite = (weights['snr'] * snr_scores
+                 + weights['isolation'] * isolation_scores
+                 + weights['symmetry'] * symmetry_scores
+                 + weights['d_match'] * d_match_scores)
+    # Normalise to [0, 1]
+    w_total = sum(weights.values())
+    if w_total > 0:
+        composite = composite / w_total
+
+    # Zero out overlapping peaks
+    if 'cross_phase_overlap' in peak_results:
+        composite[peak_results['cross_phase_overlap']] = 0.0
+
+    result = dict(peak_results)
+    result['quality_score'] = composite
+    result['snr_score'] = snr_scores
+    result['isolation_score'] = isolation_scores
+    result['symmetry_score'] = symmetry_scores
+    result['d_match_score'] = d_match_scores
+
+    return result

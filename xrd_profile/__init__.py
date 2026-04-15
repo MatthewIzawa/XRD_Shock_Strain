@@ -20,7 +20,8 @@ from .conversions import (two_theta_to_d, d_to_two_theta, two_theta_to_Q,
                           two_theta_to_K, fwhm_to_deltaK)
 from .noise import estimate_noise, estimate_zero_offset
 from .peak_detection import (estimate_fwhm_simple, estimate_fwhm_voigt,
-                             voigt_profile, find_peaks_guided)
+                             voigt_profile, find_peaks_guided,
+                             check_cross_phase_overlap, score_peak_quality)
 from .scherrer import scherrer, modified_scherrer
 from .profile import XRDProfile
 
@@ -32,4 +33,5 @@ __all__ = [
     'estimate_fwhm_simple', 'estimate_fwhm_voigt',
     'voigt_profile', 'find_peaks_guided',
     'scherrer', 'modified_scherrer',
+    'check_cross_phase_overlap', 'score_peak_quality',
 ]
