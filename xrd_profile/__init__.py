@@ -14,7 +14,7 @@ methods, and improved Fourier coefficient extraction.
 See README.md for full attribution and citation information.
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 from .conversions import (two_theta_to_d, d_to_two_theta, two_theta_to_Q,
                           two_theta_to_K, fwhm_to_deltaK)
@@ -23,6 +23,8 @@ from .peak_detection import (estimate_fwhm_simple, estimate_fwhm_voigt,
                              voigt_profile, find_peaks_guided,
                              check_cross_phase_overlap, score_peak_quality)
 from .scherrer import scherrer, modified_scherrer
+from .pdf import (chebyshev_background, compute_pdf_sine,
+                  measure_pdf_peaks, fit_first_pdf_peak)
 from .profile import XRDProfile
 
 __all__ = [
@@ -34,4 +36,6 @@ __all__ = [
     'voigt_profile', 'find_peaks_guided',
     'scherrer', 'modified_scherrer',
     'check_cross_phase_overlap', 'score_peak_quality',
+    'chebyshev_background', 'compute_pdf_sine',
+    'measure_pdf_peaks', 'fit_first_pdf_peak',
 ]

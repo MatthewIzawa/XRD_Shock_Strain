@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xrd_profile"
-version = "0.1.0"
+version = "0.2.0"
 description = "XRD peak profile analysis toolkit: Williamson-Hall, Warren-Averbach, Scherrer, and pair distribution function methods"
 readme = "README.md"
 license = {text = "MIT"}

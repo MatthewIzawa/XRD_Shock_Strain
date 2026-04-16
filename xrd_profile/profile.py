@@ -188,7 +188,10 @@ class XRDProfile:
 
     def compute_pdf(self):
         """
-        Compute pair distribution function from the diffraction pattern.
+        Compute pair distribution function from the diffraction pattern
+        using the basic FFT method.
+
+        For quantitative work, use compute_pdf_sine() instead.
 
         Returns
         -------
@@ -199,6 +202,77 @@ class XRDProfile:
         processor = PDFProcessor(self.two_theta, self.intensity,
                                  self.wavelength)
         return processor.compute_pdf()
+
+    def compute_pdf_sine(self, cheby_order=15, lorch=True,
+                         r_max=30.0, n_r=2000):
+        """
+        Compute PDF via sine Fourier transform with Chebyshev
+        background subtraction and optional Lorch modification.
+
+        Parameters
+        ----------
+        cheby_order : int
+            Chebyshev polynomial order for background.
+        lorch : bool
+            Apply Lorch modification to suppress termination ripples.
+        r_max : float
+            Maximum radial distance (angstroms).
+        n_r : int
+            Number of points in r-grid.
+
+        Returns
+        -------
+        r : np.ndarray - radial distances (angstroms)
+        G_r : np.ndarray - PDF values
+        Q_max : float - maximum Q reached (inverse angstroms)
+        """
+        from .pdf import compute_pdf_sine
+        return compute_pdf_sine(self.two_theta, self.intensity,
+                                self.wavelength, cheby_order=cheby_order,
+                                lorch=lorch, r_max=r_max, n_r=n_r)
+
+    def measure_pdf_peaks(self, min_r=1.0, max_r=20.0, n_max=20,
+                          **pdf_kwargs):
+        """
+        Detect and characterise peaks in the PDF.
+
+        Parameters
+        ----------
+        min_r, max_r : float
+            Radial search range (angstroms).
+        n_max : int
+            Maximum peaks to return.
+        **pdf_kwargs
+            Passed to compute_pdf_sine (cheby_order, lorch, etc.).
+
+        Returns
+        -------
+        list of dict with 'r', 'height', 'fwhm' per peak.
+        """
+        from .pdf import measure_pdf_peaks
+        r, G_r, _ = self.compute_pdf_sine(**pdf_kwargs)
+        return measure_pdf_peaks(r, G_r, min_r=min_r, max_r=max_r,
+                                 n_max=n_max)
+
+    def fit_first_pdf_peak(self, r_min=1.2, r_max=6.0, **pdf_kwargs):
+        """
+        Fit a Gaussian to the first coordination-shell PDF peak.
+
+        Parameters
+        ----------
+        r_min, r_max : float
+            Search range (angstroms).
+        **pdf_kwargs
+            Passed to compute_pdf_sine (cheby_order, lorch, etc.).
+
+        Returns
+        -------
+        r_peak : float - peak centre (angstroms)
+        fwhm : float - FWHM (angstroms)
+        """
+        from .pdf import fit_first_pdf_peak
+        r, G_r, _ = self.compute_pdf_sine(**pdf_kwargs)
+        return fit_first_pdf_peak(r, G_r, r_min=r_min, r_max=r_max)
 
     def crystallite_size_from_pdf(self, shape='spherical'):
         """Estimate crystallite size from the PDF envelope function."""
@@ -310,16 +384,30 @@ class XRDProfile:
         ax.legend()
         return ax
 
-    def plot_pdf(self, ax=None, r_max=30, **kwargs):
-        """Plot the pair distribution function."""
-        r, g_r = self.compute_pdf()
+    def plot_pdf(self, ax=None, r_max=30, method='sine', **kwargs):
+        """
+        Plot the pair distribution function.
+
+        Parameters
+        ----------
+        ax : matplotlib Axes or None
+        r_max : float
+            Maximum r to plot (angstroms).
+        method : str
+            'sine' (default, Chebyshev + Lorch) or 'fft' (basic).
+        """
+        if method == 'sine':
+            r, g_r, _ = self.compute_pdf_sine(r_max=r_max)
+        else:
+            r, g_r = self.compute_pdf()
         mask = (r > 0) & (r < r_max)
 
         if ax is None:
             fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(r[mask], g_r[mask], label=self.sample_name, **kwargs)
         ax.set_xlabel(r'r ($\AA$)')
-        ax.set_ylabel('g(r)')
+        ax.set_ylabel('G(r)')
         ax.set_title(f'PDF: {self.sample_name}')
+        ax.axhline(0, color='grey', linewidth=0.3, linestyle=':')
         ax.legend()
         return ax

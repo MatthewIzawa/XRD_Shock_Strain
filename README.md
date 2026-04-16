@@ -9,7 +9,7 @@ A Python toolkit for quantitative analysis of powder X-ray diffraction peak prof
 - **Williamson-Hall analysis**: conventional and reciprocal-space (DeltaK vs K) formulations
 - **Warren-Averbach analysis**: Fourier decomposition with harmonic peak families, adaptive window, Tukey tapering, and quality filtering
 - **Scherrer equation**: standard per-peak and modified log-linear regression
-- **Pair distribution function**: FFT-based PDF from powder XRD with envelope function crystallite size estimation
+- **Pair distribution function**: sine Fourier transform PDF with iterative Chebyshev background subtraction, Lorch modification, peak detection, and Gaussian first-shell fitting; plus FFT-based PDF with envelope function crystallite size estimation
 - **XRDProfile class**: unified interface wrapping all methods with plotting utilities
 
 ## Installation
@@ -77,6 +77,41 @@ wh = profile.guided_williamson_hall(ref_d, n_sigma=3.0)
 wa = profile.guided_warren_averbach(ref_peaks, n_sigma=3.0)
 ```
 
+### Pair distribution function analysis
+
+The enhanced PDF pipeline uses iterative Chebyshev background subtraction in Q-space and a sine Fourier transform with optional Lorch modification to suppress termination ripples:
+
+```python
+from xrd_profile import XRDProfile
+
+profile = XRDProfile(two_theta, intensity, wavelength=0.826517,
+                     sample_name='Millbillillie')
+
+# Compute PDF with Chebyshev background and Lorch modification
+r, G_r, Q_max = profile.compute_pdf_sine(cheby_order=20, lorch=True)
+
+# Measure all PDF peaks
+peaks = profile.measure_pdf_peaks(min_r=1.0, max_r=15.0)
+for p in peaks[:5]:
+    print(f"  r = {p['r']:.3f} A, FWHM = {p['fwhm']:.3f} A")
+
+# Gaussian fit to the first coordination shell
+r_peak, fwhm = profile.fit_first_pdf_peak()
+print(f"First shell: r = {r_peak:.3f} A, FWHM = {fwhm:.4f} A")
+```
+
+The functions are also available standalone for use outside the `XRDProfile` class:
+
+```python
+from xrd_profile import (chebyshev_background, compute_pdf_sine,
+                          measure_pdf_peaks, fit_first_pdf_peak)
+
+r, G_r, Q_max = compute_pdf_sine(two_theta, intensity, wavelength,
+                                  cheby_order=15, lorch=True)
+peaks = measure_pdf_peaks(r, G_r)
+r_pk, fwhm = fit_first_pdf_peak(r, G_r)
+```
+
 ## Dependencies
 
 - numpy
@@ -109,6 +144,7 @@ The following features are original to this package:
 - Automated zero-point offset estimation
 - Improved Warren-Averbach Fourier coefficient extraction with adaptive windowing, Tukey tapering, uniform s-grid interpolation, overlap detection, and quality filtering
 - Multi-phase analysis capability (separate guides for different mineral phases in the same pattern)
+- Enhanced PDF pipeline: iterative Chebyshev polynomial background subtraction in Q-space, sine Fourier transform with optional Lorch modification, PDF peak detection and Gaussian first-shell fitting
 
 ## License
 
@@ -118,6 +154,6 @@ MIT License. See LICENSE file.
 
 If you use this package in published research, please cite:
 
-> Izawa, M. R. M. (2026). xrd_profile: XRD peak profile analysis toolkit (v0.1.0). https://github.com/matthewizawa/xrd_profile
+> Izawa, M. R. M. (2026). xrd_profile: XRD peak profile analysis toolkit (v0.2.0). https://github.com/matthewizawa/xrd_profile
 
 and acknowledge the crystallite_size_calculator package by Wonanke (see Attribution above).

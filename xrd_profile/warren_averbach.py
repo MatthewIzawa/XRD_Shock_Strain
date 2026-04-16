@@ -127,7 +127,7 @@ def extract_peak_profile(two_theta, intensity, peak_tt, wavelength,
         profile = profile * window
 
     # Normalise so area = 1
-    area = np.trapz(profile, tt_region)
+    area = np.trapezoid(profile, tt_region)
     if area > 0:
         profile_norm = profile / area
     else:
@@ -216,7 +216,7 @@ def fourier_coefficients(s, profile, s0, n_coeffs=30):
     for n in range(n_coeffs):
         L[n] = n / (2 * delta_s)
         cos_term = np.cos(2 * np.pi * L[n] * ds)
-        A_L[n] = np.trapz(profile * cos_term, s)
+        A_L[n] = np.trapezoid(profile * cos_term, s)
 
     # Normalise so A(0) = 1
     if A_L[0] != 0:
