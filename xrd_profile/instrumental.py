@@ -76,3 +76,45 @@ class InstrumentalProfile:
                 'for this angular range.',
                 UserWarning, stacklevel=2)
         return np.sqrt(np.maximum(fwhm_sq, 0.0))
+
+    SCHEMA_VERSION = '1'
+
+    def to_json(self, path) -> None:
+        """Serialise this profile to a JSON file at `path`."""
+        path = Path(path)
+        path.write_text(json.dumps({
+            'schema_version': self.SCHEMA_VERSION,
+            'U': self.U,
+            'V': self.V,
+            'W': self.W,
+            'wavelength': self.wavelength,
+            'name': self.name,
+        }, indent=2))
+
+    @classmethod
+    def from_json(cls, path) -> 'InstrumentalProfile':
+        """Load a profile from a JSON file produced by `to_json`."""
+        data = json.loads(Path(path).read_text())
+        if data.get('schema_version') != cls.SCHEMA_VERSION:
+            raise ValueError(
+                f'Unsupported InstrumentalProfile schema_version '
+                f'{data.get("schema_version")!r}; this code expects '
+                f'{cls.SCHEMA_VERSION!r}')
+        return cls(U=data['U'], V=data['V'], W=data['W'],
+                   wavelength=data['wavelength'],
+                   name=data.get('name', ''))
+
+    @classmethod
+    def from_registry(cls, name: str) -> 'InstrumentalProfile':
+        """Look up a pre-fit profile by name in
+        `xrd_profile/registry/<name>.json`. v0.4.0 ships an empty
+        registry; users populate it with their own JSON profiles."""
+        registry_dir = Path(__file__).parent / 'registry'
+        candidate = registry_dir / f'{name}.json'
+        if not candidate.is_file():
+            raise KeyError(
+                f'No registered InstrumentalProfile {name!r}; '
+                f'expected file at {candidate}. The v0.4.0 registry '
+                f'ships empty; populate via `InstrumentalProfile.to_json` '
+                f'into the registry directory.')
+        return cls.from_json(candidate)

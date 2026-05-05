@@ -60,3 +60,35 @@ class TestInstrumentalProfileBasics:
         with pytest.warns(UserWarning, match='Caglioti polynomial negative'):
             result = prof.fwhm_at(45.0)
         assert result == 0.0
+
+
+class TestInstrumentalProfileJsonIO:
+    def test_to_json_from_json_round_trip(self, tmp_path):
+        prof = InstrumentalProfile(U=SYNTH_U, V=SYNTH_V, W=SYNTH_W,
+                                    wavelength=LAMBDA_CU,
+                                    name='test_round_trip')
+        path = tmp_path / 'profile.json'
+        prof.to_json(path)
+        loaded = InstrumentalProfile.from_json(path)
+        assert loaded.U == prof.U
+        assert loaded.V == prof.V
+        assert loaded.W == prof.W
+        assert loaded.wavelength == prof.wavelength
+        assert loaded.name == prof.name
+
+    def test_json_file_contains_documented_fields(self, tmp_path):
+        prof = InstrumentalProfile(U=0.005, V=-0.001, W=0.005,
+                                    wavelength=LAMBDA_CU,
+                                    name='lab_bruker_cu_ka')
+        path = tmp_path / 'p.json'
+        prof.to_json(path)
+        contents = json.loads(path.read_text())
+        assert set(contents) == {'U', 'V', 'W', 'wavelength',
+                                 'name', 'schema_version'}
+        assert contents['schema_version'] == '1'
+
+
+class TestInstrumentalProfileRegistry:
+    def test_from_registry_unknown_name_raises_keyerror(self):
+        with pytest.raises(KeyError, match='nonexistent_profile'):
+            InstrumentalProfile.from_registry('nonexistent_profile')
