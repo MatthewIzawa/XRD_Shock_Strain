@@ -157,3 +157,35 @@ class TestXRDProfileGuidedWilliamsonHallPhaseKwarg:
         profile, an = self._make_profile_and_phase()
         with pytest.raises(NotImplementedError, match='Phase 2'):
             profile.guided_williamson_hall(phase=an, instrumental='anything')
+
+
+class TestXRDProfileGuidedWarrenAverbachPhaseKwarg:
+    def _make_profile_and_phase(self):
+        # Reuse the exact same setup as the W-H integration test
+        return TestXRDProfileGuidedWilliamsonHallPhaseKwarg(
+            )._make_profile_and_phase()
+
+    def test_phase_kwarg_produces_same_result_as_manual_ref_peaks(self):
+        profile, an = self._make_profile_and_phase()
+        tt_range = (float(profile.two_theta.min()),
+                    float(profile.two_theta.max()))
+        manual_peaks = an.get_ref_peaks(profile.wavelength,
+                                         two_theta_range=tt_range)
+        manual = profile.guided_warren_averbach(
+            manual_peaks, n_sigma=3.0, tolerance_d=0.03)
+        via_phase = profile.guided_warren_averbach(
+            phase=an, n_sigma=3.0, tolerance_d=0.03)
+        assert manual['n_families'] == via_phase['n_families']
+
+    def test_passing_both_phase_and_ref_peaks_raises_value_error(self):
+        profile, an = self._make_profile_and_phase()
+        with pytest.raises(ValueError, match='either ref_peaks or phase'):
+            profile.guided_warren_averbach(
+                ref_peaks=[{'d': 3.0, 'h': 1, 'k': 0, 'l': 0,
+                            'intensity': 100, 'two_theta': 30}],
+                phase=an)
+
+    def test_instrumental_kwarg_raises_not_implemented(self):
+        profile, an = self._make_profile_and_phase()
+        with pytest.raises(NotImplementedError, match='Phase 2'):
+            profile.guided_warren_averbach(phase=an, instrumental='x')

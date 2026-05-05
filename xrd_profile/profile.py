@@ -143,18 +143,27 @@ class XRDProfile:
             **kwargs
         )
 
-    def guided_warren_averbach(self, ref_peaks, tolerance_d=0.03,
+    def guided_warren_averbach(self, ref_peaks=None, tolerance_d=0.03,
                                 n_sigma=3.0, min_fwhm_steps=3,
                                 correct_offset=True, n_coeffs=20,
-                                width_fwhm=6.0, require_clean=False):
+                                width_fwhm=6.0, require_clean=False,
+                                *,
+                                phase=None,
+                                instrumental=None):
         """
         Reference-guided Warren-Averbach analysis using harmonic families.
 
         Parameters
         ----------
-        ref_peaks : list of dict
+        ref_peaks : list of dict or None
             Reference peaks with 'd', 'two_theta', 'intensity',
-            'h', 'k', 'l' keys.
+            'h', 'k', 'l' keys. Mutually exclusive with phase=.
+        phase : Phase or None
+            New in v0.3.0. If provided, ref_peaks is computed from
+            phase.get_ref_peaks(wavelength, two_theta_range=data_range).
+            Mutually exclusive with ref_peaks=.
+        instrumental : reserved for Phase 2 / v1.0
+            Pass None (default). Any other value raises NotImplementedError.
         tolerance_d, n_sigma, min_fwhm_steps, correct_offset, n_coeffs,
         width_fwhm, require_clean : see guided_warren_averbach function.
 
@@ -162,6 +171,20 @@ class XRDProfile:
         -------
         dict with families, crystallite sizes, strains, etc.
         """
+        if phase is not None and ref_peaks is not None:
+            raise ValueError('pass either ref_peaks or phase, not both')
+        if phase is not None:
+            tt_range = (float(self.two_theta.min()),
+                        float(self.two_theta.max()))
+            ref_peaks = phase.get_ref_peaks(self.wavelength,
+                                             two_theta_range=tt_range)
+        if instrumental is not None:
+            raise NotImplementedError(
+                'instrumental= is reserved for Phase 2 / v1.0; '
+                'see xrd_profile roadmap')
+        if ref_peaks is None:
+            raise ValueError('must pass either ref_peaks or phase')
+
         from .warren_averbach import guided_warren_averbach
         return guided_warren_averbach(
             self.two_theta, self.intensity, ref_peaks, self.wavelength,
