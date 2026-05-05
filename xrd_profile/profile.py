@@ -194,8 +194,11 @@ class XRDProfile:
             require_clean=require_clean
         )
 
-    def scherrer(self, K=0.9, height_threshold=0.05):
-        """Run Scherrer analysis on all detected peaks."""
+    def scherrer(self, K=None, shape=None, height_threshold=0.05):
+        """Run Scherrer analysis on all detected peaks.
+
+        K and shape: see xrd_profile.scherrer.scherrer for resolution rules.
+        """
         fwhm, positions = estimate_fwhm_simple(
             self.two_theta, self.intensity, height_threshold
         )
@@ -204,7 +207,7 @@ class XRDProfile:
                     'd_spacings': np.array([]), 'fwhm': np.array([]),
                     'mean_size': np.nan, 'median_size': np.nan}
 
-        sizes = scherrer(fwhm, positions, self.wavelength, K)
+        sizes = scherrer(fwhm, positions, self.wavelength, K=K, shape=shape)
         d_sp = two_theta_to_d(positions, self.wavelength)
         return {
             'sizes': sizes, 'peak_positions': positions,
@@ -212,14 +215,18 @@ class XRDProfile:
             'mean_size': np.mean(sizes), 'median_size': np.median(sizes),
         }
 
-    def modified_scherrer(self, K=0.9, height_threshold=0.05):
-        """Run modified Scherrer equation. Returns average size (angstroms)."""
+    def modified_scherrer(self, K=None, shape=None, height_threshold=0.05):
+        """Run modified Scherrer equation. Returns average size (angstroms).
+
+        K and shape: see xrd_profile.scherrer.modified_scherrer.
+        """
         fwhm, positions = estimate_fwhm_simple(
             self.two_theta, self.intensity, height_threshold
         )
         if len(fwhm) < 2:
             return np.nan
-        return modified_scherrer(fwhm, positions, self.wavelength, K)
+        return modified_scherrer(fwhm, positions, self.wavelength,
+                                  K=K, shape=shape)
 
     def warren_averbach(self, initial_size=None, height_threshold=0.05):
         """Run simplified (unguided) Warren-Averbach analysis."""

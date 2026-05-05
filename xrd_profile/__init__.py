@@ -22,7 +22,7 @@ from .noise import estimate_noise, estimate_zero_offset
 from .peak_detection import (estimate_fwhm_simple, estimate_fwhm_voigt,
                              voigt_profile, find_peaks_guided,
                              check_cross_phase_overlap, score_peak_quality)
-from .scherrer import scherrer, modified_scherrer
+from .scherrer import scherrer, modified_scherrer, SCHERRER_K_FOR_SHAPE
 from .pdf import (chebyshev_background, compute_pdf_sine,
                   measure_pdf_peaks, fit_first_pdf_peak)
 from .profile import XRDProfile
@@ -34,7 +34,7 @@ __all__ = [
     'estimate_noise', 'estimate_zero_offset',
     'estimate_fwhm_simple', 'estimate_fwhm_voigt',
     'voigt_profile', 'find_peaks_guided',
-    'scherrer', 'modified_scherrer',
+    'scherrer', 'modified_scherrer', 'SCHERRER_K_FOR_SHAPE',
     'check_cross_phase_overlap', 'score_peak_quality',
     'chebyshev_background', 'compute_pdf_sine',
     'measure_pdf_peaks', 'fit_first_pdf_peak',
