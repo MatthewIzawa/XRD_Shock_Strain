@@ -363,6 +363,86 @@ class XRDProfile:
             'pdf_crystallite_size': pdf_size,
         }
 
+    def run_all(self,
+                 methods=None,
+                 phases=None,
+                 wh=None,
+                 wa=None,
+                 pdf=None,
+                 scherrer=None,
+                 instrumental=None):
+        """
+        Run a configurable bundle of analyses.
+
+        Parameters
+        ----------
+        methods : list of {'wh', 'wa', 'pdf', 'scherrer'} or None
+            Which analyses to run. None = all four.
+        phases : list of Phase, single Phase, or None
+            For guided W-H and W-A. None = unguided forms run.
+        wh, wa, pdf, scherrer : dict or None
+            Per-method kwargs.
+            e.g. wh={'n_sigma': 3.0, 'tolerance_d': 0.02}.
+        instrumental : reserved for Phase 2; raises NotImplementedError.
+
+        Returns
+        -------
+        dict. With phases:
+          {'wh': {phase.name: result, ...},
+           'wa': {phase.name: result, ...},
+           'pdf': result,
+           'scherrer': result}
+        Without phases:
+          {'wh': result, 'wa': result, 'pdf': result, 'scherrer': result}
+        """
+        if instrumental is not None:
+            raise NotImplementedError(
+                'instrumental= is reserved for Phase 2 / v1.0; '
+                'see xrd_profile roadmap')
+
+        if methods is None:
+            methods = ['wh', 'wa', 'pdf', 'scherrer']
+        wh_kwargs = wh or {}
+        wa_kwargs = wa or {}
+        pdf_kwargs = pdf or {}
+        scherrer_kwargs = scherrer or {}
+
+        # Normalise phases to a list (or None)
+        if phases is not None and not isinstance(phases, (list, tuple)):
+            phases = [phases]
+
+        results = {}
+
+        if 'wh' in methods:
+            if phases:
+                results['wh'] = {
+                    p.name: self.guided_williamson_hall(phase=p, **wh_kwargs)
+                    for p in phases
+                }
+            else:
+                from .williamson_hall import williamson_hall
+                results['wh'] = williamson_hall(
+                    self.two_theta, self.intensity, self.wavelength,
+                    **wh_kwargs)
+
+        if 'wa' in methods:
+            if phases:
+                results['wa'] = {
+                    p.name: self.guided_warren_averbach(phase=p, **wa_kwargs)
+                    for p in phases
+                }
+            else:
+                results['wa'] = self.warren_averbach(**wa_kwargs)
+
+        if 'pdf' in methods:
+            r, G_r, Q_max = self.compute_pdf_sine(**pdf_kwargs)
+            results['pdf'] = {'r': r, 'G_r': G_r, 'Q_max': Q_max}
+
+        if 'scherrer' in methods:
+            results['scherrer'] = self.scherrer(**scherrer_kwargs)
+
+        return results
+
     # --- Plotting ---
 
     def plot_pattern(self, ax=None, offset=0, x_axis='d_spacing', **kwargs):
