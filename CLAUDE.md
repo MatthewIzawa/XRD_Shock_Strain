@@ -18,14 +18,29 @@ shock systematics.
 Currently shipped: v0.3.0 (Phase 1, 2026-05-05). Next planned tags:
 v0.4.0 → v0.5.0 → v1.0.0 (Phase 2). See spec / plan locations below.
 
-## Working directory and test command
+## Working directory, Python environment, and test command
 
 - Package root: `C:\Users\Matthew Izawa\Documents\Dan Applin\Llunr\xrd_profile\`.
-- Run tests from the package root: `pytest tests/ -v`. Stop on first
-  failure with `pytest -x`.
 - The package root is itself a git repo. The parent directory `Llunr/`
   is not a git repo; it holds the JAC manuscript, analysis pipeline
   scripts, and instrument data alongside the package.
+- **Python interpreter**: Anaconda base env at
+  `C:\Users\Matthew Izawa\anaconda3\python.exe` (Python 3.13.9). The
+  `python` / `pip` / `pytest` commands are *not* on PATH from
+  bash / PowerShell unless an Anaconda shell-init was run; invoke the
+  interpreter by full path. From Git Bash:
+  `"/c/Users/Matthew Izawa/anaconda3/python.exe"`.
+  From PowerShell: `& "C:\Users\Matthew Izawa\anaconda3\python.exe"`.
+- **Test command** (from the package root or any worktree):
+  ```
+  "/c/Users/Matthew Izawa/anaconda3/python.exe" -m pytest tests/ -v
+  ```
+  Stop on first failure with `-x`. The local `xrd_profile/` package
+  becomes importable because pytest's rootdir-on-sys.path behaviour
+  picks up the source tree — no `pip install -e .` needed.
+- The base env already has numpy, scipy, matplotlib, pymatgen, pytest
+  (verified 2026-05-05 against v0.3.0; the full v0.3.0 test suite
+  passes at 59/59 in ~30 s).
 
 ## Branching, worktrees, and tags
 
