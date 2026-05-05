@@ -4,26 +4,28 @@ Example: Laboratory XRD analysis of a lunar meteorite.
 Analyses NWA 11182a (weakly shocked lunar meteorite) from a Rigaku
 SmartLab with Cu K-alpha radiation (10-60 deg 2-theta, 0.02 deg steps).
 Demonstrates reference-guided Williamson-Hall and Warren-Averbach
-analysis using computed anorthite peak positions.
+analysis using the v0.3.0 Phase API.
+
+The legacy v0.2.0 version (with inline Structure + build_ref helper)
+is preserved at examples/legacy/lab_lunar_meteorite.py.
 
 Data: University of Winnipeg HOSERLab / Okayama University IPM.
 """
 
 import numpy as np
-from pymatgen.core.structure import Structure, Lattice
-from pymatgen.analysis.diffraction.xrd import XRDCalculator
-from xrd_profile import XRDProfile, two_theta_to_d
+from xrd_profile import XRDProfile
+from xrd_profile.phases import Phase
 
 # ── Instrument parameters ──
 CU_KA = 1.54056  # Cu K-alpha wavelength (angstroms)
 
+DATA_PATH = (r'C:\Users\Matthew Izawa\Documents\Conferences\LPSC 2025'
+              r'\Lunar\XY files\nwa11182a.xy')
+
 # ── Load diffraction data ──
 # Format: space-separated 2-theta (deg), intensity (counts)
 # Adapt this path to your own data
-data = np.loadtxt(
-    r'C:\Users\Matthew Izawa\Documents\Conferences\LPSC 2025'
-    r'\Lunar\XY files\nwa11182a.xy',
-    comments='#')
+data = np.loadtxt(DATA_PATH, comments='#')
 two_theta, intensity = data[:, 0], data[:, 1]
 
 print(f"Loaded: {len(two_theta)} points, "
@@ -41,55 +43,37 @@ print(f"Peaks detected: {wh['n_peaks']}")
 print(f"W-H crystallite size: {wh['crystallite_size']:.0f} angstroms")
 print(f"Scherrer mean size: {results['scherrer']['mean_size']:.0f} angstroms")
 
-# ── Step 2: Build mineral reference from crystal structure ──
+# ── Step 2: Build anorthite phase ──
 # Anorthite (CaAl2Si2O8), P-1, RRUFF R060193 cell parameters
-lattice = Lattice.from_parameters(
-    8.1809, 12.881, 7.1101, 93.465, 116.11, 90.369)
-species = ['Ca', 'Al', 'Al', 'Si', 'Si',
-           'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O']
-coords = [
-    [0.269, 0.988, 0.086],  # Ca
-    [0.507, 0.314, 0.621],  # Al
-    [0.992, 0.815, 0.118],  # Al
-    [0.505, 0.320, 0.110],  # Si
-    [0.006, 0.816, 0.613],  # Si
-    [0.491, 0.625, 0.487],  # O
-    [0.024, 0.124, 0.995],  # O
-    [0.073, 0.488, 0.635],  # O
-    [0.576, 0.990, 0.143],  # O
-    [0.298, 0.356, 0.612],  # O
-    [0.817, 0.855, 0.142],  # O
-    [0.517, 0.179, 0.610],  # O
-    [0.000, 0.680, 0.104],  # O
-]
-structure = Structure(lattice, species, coords)
+anorthite = Phase.from_lattice_params(
+    8.1809, 12.881, 7.1101, 93.465, 116.11, 90.369,
+    species=['Ca', 'Al', 'Al', 'Si', 'Si',
+             'O', 'O', 'O', 'O', 'O', 'O', 'O', 'O'],
+    coords=[
+        [0.269, 0.988, 0.086],  # Ca
+        [0.507, 0.314, 0.621],  # Al
+        [0.992, 0.815, 0.118],  # Al
+        [0.505, 0.320, 0.110],  # Si
+        [0.006, 0.816, 0.613],  # Si
+        [0.491, 0.625, 0.487],  # O
+        [0.024, 0.124, 0.995],  # O
+        [0.073, 0.488, 0.635],  # O
+        [0.576, 0.990, 0.143],  # O
+        [0.298, 0.356, 0.612],  # O
+        [0.817, 0.855, 0.142],  # O
+        [0.517, 0.179, 0.610],  # O
+        [0.000, 0.680, 0.104],  # O
+    ],
+    name='Anorthite',
+)
 
-# Compute reference peak positions at your wavelength
-xrd_calc = XRDCalculator(wavelength='CuKa')
-pattern = xrd_calc.get_pattern(structure, two_theta_range=(5, 90))
-
-# Build reference peak list with hkl indices (needed for W-A)
-ref_peaks = []
-for i in range(len(pattern.x)):
-    hkl = pattern.hkls[i][0]['hkl']
-    d = two_theta_to_d(pattern.x[i], CU_KA)
-    ref_peaks.append({
-        'd': float(d), 'two_theta': float(pattern.x[i]),
-        'intensity': float(pattern.y[i]),
-        'h': hkl[0], 'k': hkl[1], 'l': hkl[2],
-    })
-
-# d-spacings sorted by intensity (needed for W-H)
-ref_d = np.array(sorted(
-    [p['d'] for p in ref_peaks if p['intensity'] >= 3.0],
-    reverse=True))
-
-print(f"\nAnorthite reference: {len(ref_peaks)} reflections, "
-      f"{len(ref_d)} with I >= 3%")
+ref_peaks = anorthite.get_ref_peaks(CU_KA, two_theta_range=(5, 90))
+print(f"\nAnorthite reference: {len(ref_peaks)} reflections")
 
 # ── Step 3: Guided Williamson-Hall ──
 print("\n--- Guided Williamson-Hall (reciprocal space) ---")
-gwh = profile.guided_williamson_hall(ref_d, n_sigma=3.0, tolerance_d=0.03)
+gwh = profile.guided_williamson_hall(phase=anorthite, n_sigma=3.0,
+                                      tolerance_d=0.03)
 
 print(f"Zero-point offset: {gwh['zero_offset']:.4f} deg")
 print(f"Anorthite peaks found: {gwh['n_peaks']}")
@@ -109,7 +93,8 @@ if len(pk['d_obs']) > 10:
 
 # ── Step 4: Guided Warren-Averbach ──
 print("\n--- Guided Warren-Averbach ---")
-gwa = profile.guided_warren_averbach(ref_peaks, n_sigma=3.0, tolerance_d=0.03)
+gwa = profile.guided_warren_averbach(phase=anorthite, n_sigma=3.0,
+                                      tolerance_d=0.03)
 
 print(f"Harmonic families analysed: {gwa['n_families']}")
 print(f"Families rejected: {gwa['n_families_rejected']}")
