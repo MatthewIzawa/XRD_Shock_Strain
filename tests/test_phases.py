@@ -103,3 +103,57 @@ class TestBuildReferencePeaks:
         for a, b in zip(via_func, via_method):
             for key in ('d', 'two_theta', 'intensity', 'h', 'k', 'l'):
                 assert a[key] == b[key]
+
+
+class TestXRDProfileGuidedWilliamsonHallPhaseKwarg:
+    """Tests for the phase= kwarg added in v0.3.0."""
+
+    def _make_profile_and_phase(self):
+        from xrd_profile import XRDProfile
+        # Use the bundled regression-test fixture
+        from pathlib import Path
+        fix = Path(__file__).parent / 'fixtures' / 'tirhert_subset.xy'
+        data = np.loadtxt(fix)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=0.826517, sample_name='Tirhert')
+        # Anorthite via from_lattice_params (same numbers as the
+        # synchrotron_low_shock.py example).
+        from xrd_profile.phases import Phase
+        an = Phase.from_lattice_params(
+            8.1809, 12.881, 7.1101, 93.465, 116.11, 90.369,
+            species=['Ca','Al','Al','Si','Si','O','O','O','O','O','O','O','O'],
+            coords=[
+                [0.269,0.988,0.086],[0.507,0.314,0.621],[0.992,0.815,0.118],
+                [0.505,0.320,0.110],[0.006,0.816,0.613],[0.491,0.625,0.487],
+                [0.024,0.124,0.995],[0.073,0.488,0.635],[0.576,0.990,0.143],
+                [0.298,0.356,0.612],[0.817,0.855,0.142],[0.517,0.179,0.610],
+                [0.000,0.680,0.104],
+            ],
+            name='Anorthite',
+        )
+        return profile, an
+
+    def test_phase_kwarg_produces_same_result_as_manual_ref_d(self):
+        profile, an = self._make_profile_and_phase()
+        tt_range = (float(profile.two_theta.min()),
+                    float(profile.two_theta.max()))
+        manual_ref_d = an.get_ref_d(profile.wavelength,
+                                     two_theta_range=tt_range)
+        manual = profile.guided_williamson_hall(
+            manual_ref_d, n_sigma=3.0, tolerance_d=0.03)
+        via_phase = profile.guided_williamson_hall(
+            phase=an, n_sigma=3.0, tolerance_d=0.03)
+        # Both should yield the same crystallite_size to high tolerance
+        assert np.isclose(manual['crystallite_size'],
+                          via_phase['crystallite_size'], rtol=1e-10)
+
+    def test_passing_both_phase_and_ref_d_raises_value_error(self):
+        profile, an = self._make_profile_and_phase()
+        with pytest.raises(ValueError, match='either ref_d or phase'):
+            profile.guided_williamson_hall(
+                ref_d=np.array([3.2, 4.0]), phase=an)
+
+    def test_instrumental_kwarg_raises_not_implemented(self):
+        profile, an = self._make_profile_and_phase()
+        with pytest.raises(NotImplementedError, match='Phase 2'):
+            profile.guided_williamson_hall(phase=an, instrumental='anything')

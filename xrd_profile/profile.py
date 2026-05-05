@@ -68,7 +68,7 @@ class XRDProfile:
                                          self.wavelength, use_voigt,
                                          height_threshold)
 
-    def guided_williamson_hall(self, ref_d, tolerance_d=0.03,
+    def guided_williamson_hall(self, ref_d=None, tolerance_d=0.03,
                                n_sigma=3.0, min_fwhm_steps=3,
                                correct_offset=True,
                                other_phase_d=None,
@@ -79,6 +79,9 @@ class XRDProfile:
                                weighted_regression=True,
                                sample_flags=None,
                                export_path=None,
+                               *,
+                               phase=None,
+                               instrumental=None,
                                **kwargs):
         """
         Reference-guided Williamson-Hall with cross-phase overlap
@@ -87,8 +90,15 @@ class XRDProfile:
 
         Parameters
         ----------
-        ref_d : np.ndarray
+        ref_d : np.ndarray or None
             Reference d-spacings sorted by decreasing intensity.
+            Mutually exclusive with phase=.
+        phase : Phase or None
+            New in v0.3.0. If provided, ref_d is computed from
+            phase.get_ref_d(wavelength, two_theta_range=data_range).
+            Mutually exclusive with ref_d=.
+        instrumental : reserved for Phase 2 / v1.0
+            Pass None (default). Any other value raises NotImplementedError.
         other_phase_d : list of np.ndarray or None
             d-spacings for interfering phases (excluded from fit).
         sample_flags : dict or None
@@ -103,6 +113,20 @@ class XRDProfile:
         dict with strain, crystallite_size, r_squared, reliability,
         warnings, peak_quality, etc.
         """
+        if phase is not None and ref_d is not None:
+            raise ValueError('pass either ref_d or phase, not both')
+        if phase is not None:
+            tt_range = (float(self.two_theta.min()),
+                        float(self.two_theta.max()))
+            ref_d = phase.get_ref_d(self.wavelength,
+                                     two_theta_range=tt_range)
+        if instrumental is not None:
+            raise NotImplementedError(
+                'instrumental= is reserved for Phase 2 / v1.0; '
+                'see xrd_profile roadmap')
+        if ref_d is None:
+            raise ValueError('must pass either ref_d or phase')
+
         from .williamson_hall import guided_williamson_hall
         return guided_williamson_hall(
             self.two_theta, self.intensity, ref_d, self.wavelength,
