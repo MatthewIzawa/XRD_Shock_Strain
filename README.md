@@ -5,17 +5,26 @@ A Python toolkit for quantitative analysis of powder X-ray diffraction peak prof
 ## Features
 
 - **Bragg's law conversions**: 2-theta, d-spacing, Q, K = 1/d (wavelength-independent)
-- **Reference-guided peak detection**: use computed mineral reference positions with automated noise cutoff and zero-point offset correction
-- **Williamson-Hall analysis**: conventional and reciprocal-space (DeltaK vs K) formulations
+- **`Phase` abstraction**: load any crystal structure from a CIF file or inline lattice parameters; reuse across analyses (new in v0.3.0)
+- **Reference-guided peak detection**: automated noise cutoff and zero-point offset correction
+- **Williamson-Hall analysis**: conventional and reciprocal-space (ΔK vs K) formulations
 - **Warren-Averbach analysis**: Fourier decomposition with harmonic peak families, adaptive window, Tukey tapering, and quality filtering
-- **Scherrer equation**: standard per-peak and modified log-linear regression
-- **Pair distribution function**: sine Fourier transform PDF with iterative Chebyshev background subtraction, Lorch modification, peak detection, and Gaussian first-shell fitting; plus FFT-based PDF with envelope function crystallite size estimation
-- **XRDProfile class**: unified interface wrapping all methods with plotting utilities
+- **Scherrer equation**: standard per-peak and modified log-linear regression, with `K` and crystallite shape factor selection (new in v0.3.0)
+- **Pair distribution function**: sine Fourier transform PDF with iterative Chebyshev background subtraction, Lorch modification, peak detection, and Gaussian first-shell fitting
+- **Bundled `run_all()` helper**: configurable subset of methods on configurable list of phases (new in v0.3.0)
+- **`XRDProfile` class**: unified interface wrapping all methods with plotting utilities
 
 ## Installation
 
+Recommended (includes `pymatgen` for CIF loading and `Phase.from_lattice_params`):
+
 ```bash
-cd xrd_profile
+pip install -e ".[cif]"
+```
+
+Minimum (no `Phase`; the array-based public API works without `pymatgen`, useful when reference d-spacings come from Rietveld output or another source):
+
+```bash
 pip install -e .
 ```
 
@@ -23,61 +32,72 @@ pip install -e .
 
 ```python
 import numpy as np
-from xrd_profile import XRDProfile
+from xrd_profile import XRDProfile, Phase
 
 # Load diffraction data (2-theta in degrees, intensity in counts)
 data = np.loadtxt('my_pattern.xy', comments='#')
 two_theta, intensity = data[:, 0], data[:, 1]
 
-# Create profile object (specify your wavelength)
 profile = XRDProfile(two_theta, intensity, wavelength=1.5406,
                      sample_name='My Sample')
 
-# Run unguided analysis
-results = profile.full_analysis()
-print(f"W-H crystallite size: {results['williamson_hall']['crystallite_size']:.0f} A")
-print(f"Scherrer mean size: {results['scherrer']['mean_size']:.0f} A")
+# Build a phase from a CIF
+olivine = Phase.from_cif('Forsterite.cif', name='Olivine')
 
-# Plot in d-spacing
-profile.plot_pattern(x_axis='d_spacing')
+# Run a single guided analysis
+wh = profile.guided_williamson_hall(phase=olivine, n_sigma=3.0)
+print(f"W-H crystallite size: {wh['crystallite_size']:.0f} A")
+
+# Or run a bundled multi-method, multi-phase analysis
+results = profile.run_all(
+    methods=['wh', 'wa', 'pdf', 'scherrer'],
+    phases=[olivine],
+    wh={'n_sigma': 3.0, 'tolerance_d': 0.02},
+    wa={'tolerance_d': 0.02},
+)
+print(results['wh']['Olivine']['crystallite_size'])
+print(results['pdf']['Q_max'])
 ```
 
-### Reference-guided analysis
+See `examples/multi_phase_olivine.py` for a complete walk-through using the bundled CIFs and data fixture.
 
-For multi-phase samples, use computed reference peak positions from crystal structure data to guide the analysis:
+## Phases
+
+A `Phase` wraps a `pymatgen.Structure` and provides reference-peak generation. Construct from a CIF or from inline lattice parameters and atomic coordinates:
 
 ```python
-from pymatgen.core.structure import Structure
-from pymatgen.analysis.diffraction.xrd import XRDCalculator
-from xrd_profile import XRDProfile, two_theta_to_d
+from xrd_profile import Phase
 
-# Build reference peak list from CIF
-structure = Structure.from_file('anorthite.cif')
-xrd_calc = XRDCalculator(wavelength='CuKa')
-pattern = xrd_calc.get_pattern(structure, two_theta_range=(5, 90))
+# From a CIF
+quartz = Phase.from_cif('Quartz.cif', name='Quartz')
 
-ref_peaks = []
-for i in range(len(pattern.x)):
-    hkl = pattern.hkls[i][0]['hkl']
-    d = two_theta_to_d(pattern.x[i], 1.5406)
-    ref_peaks.append({
-        'd': float(d), 'two_theta': float(pattern.x[i]),
-        'intensity': float(pattern.y[i]),
-        'h': hkl[0], 'k': hkl[1], 'l': hkl[2],
-    })
+# From inline lattice parameters (useful when refined values are at hand)
+anorthite = Phase.from_lattice_params(
+    8.18, 12.88, 7.11, 93.5, 116.1, 90.4,
+    species=['Ca','Al','Al','Si','Si','O','O','O','O','O','O','O','O'],
+    coords=[...],
+    name='Anorthite',
+)
 
-# d-spacings sorted by intensity for W-H
-ref_d = sorted([p['d'] for p in ref_peaks if p['intensity'] >= 3.0],
-               reverse=True)
-
-# Guided Williamson-Hall
-wh = profile.guided_williamson_hall(ref_d, n_sigma=3.0)
-
-# Guided Warren-Averbach (needs full hkl for harmonic families)
-wa = profile.guided_warren_averbach(ref_peaks, n_sigma=3.0)
+# Pass to any guided method
+wh = profile.guided_williamson_hall(phase=quartz)
+wa = profile.guided_warren_averbach(phase=anorthite)
 ```
 
-### Pair distribution function analysis
+Bundled example CIFs are in `examples/cifs/` (forsterite, anorthite, pigeonite, quartz, hematite) with full provenance in `examples/cifs/SOURCES.md`.
+
+## Lower-level array-based API
+
+Users who already have d-spacings (e.g., from Rietveld output) can bypass `Phase` and pass arrays directly:
+
+```python
+ref_d = np.array([3.20, 3.18, 3.65, 4.04, 6.41])  # from Rietveld
+wh = profile.guided_williamson_hall(ref_d=ref_d, n_sigma=3.0)
+```
+
+This API is foundational, supported indefinitely, and does not require `pymatgen`.
+
+## Pair distribution function analysis
 
 The enhanced PDF pipeline uses iterative Chebyshev background subtraction in Q-space and a sine Fourier transform with optional Lorch modification to suppress termination ripples:
 
@@ -112,12 +132,32 @@ peaks = measure_pdf_peaks(r, G_r)
 r_pk, fwhm = fit_first_pdf_peak(r, G_r)
 ```
 
+## Scherrer K and shape factor (v0.3.0)
+
+The Scherrer constant `K` and a crystallite shape factor are exposed as kwargs:
+
+```python
+from xrd_profile import scherrer, SCHERRER_K_FOR_SHAPE
+
+# Default (K=0.9) — backward-compatible with v0.2.0
+sizes = scherrer(fwhm, two_theta, wavelength=1.5406)
+
+# Use a shape preset
+sizes = scherrer(fwhm, two_theta, 1.5406, shape='spherical')   # K=0.94
+sizes = scherrer(fwhm, two_theta, 1.5406, shape='cylindrical') # K=1.84
+
+# Or set K explicitly (wins over shape if both are passed)
+sizes = scherrer(fwhm, two_theta, 1.5406, K=1.0)
+```
+
+`SCHERRER_K_FOR_SHAPE` is exported for introspection: `{'spherical': 0.94, 'cubic': 0.83, 'cylindrical': 1.84, 'platey': 1.0}`.
+
 ## Dependencies
 
 - numpy
 - scipy
 - matplotlib
-- pymatgen (optional, for computing reference peak positions from CIF files)
+- pymatgen (optional, installed via the `[cif]` extra; required for `Phase.from_cif` and `Phase.from_lattice_params`)
 
 ## Attribution
 
@@ -130,21 +170,24 @@ The Williamson-Hall, Warren-Averbach, Scherrer, pair distribution function, and 
 ### Methods references
 
 - **Williamson-Hall method**: Williamson, G. K. & Hall, W. H. (1953). X-ray line broadening from filed aluminium and wolfram. *Acta Metallurgica*, 1, 22-31.
-- **Modified Williamson-Hall**: Das Bakshi, S., Sinha, D. & Ghosh Chowdhury, S. (2018). Anisotropic broadening of XRD peaks of alpha'-Fe: Williamson-Hall and Warren-Averbach analysis. *Materials Characterization*, 142, 144-153.
+- **Modified Williamson-Hall**: Das Bakshi, S., Sinha, D. & Ghosh Chowdhury, S. (2018). Anisotropic broadening of XRD peaks of α'-Fe: Williamson-Hall and Warren-Averbach analysis. *Materials Characterization*, 142, 144-153.
 - **Warren-Averbach method**: Warren, B. E. & Averbach, B. L. (1950). The effect of cold-work distortion on X-ray patterns. *Journal of Applied Physics*, 21, 595-599.
-- **Scherrer equation**: Scherrer, P. (1918). Bestimmung der Grosse und der inneren Struktur von Kolloidteilchen mittels Rontgenstrahlen. *Nachrichten von der Gesellschaft der Wissenschaften zu Gottingen*, 26, 98-100.
+- **Scherrer equation**: Scherrer, P. (1918). Bestimmung der Größe und der inneren Struktur von Kolloidteilchen mittels Röntgenstrahlen. *Nachrichten von der Gesellschaft der Wissenschaften zu Göttingen*, 26, 98-100.
+- **Scherrer K shape factors**: Langford, J. I. & Wilson, A. J. C. (1978). Scherrer after sixty years: a survey and some new results in the determination of crystallite size. *Journal of Applied Crystallography*, 11, 102-113.
 - **Envelope function approach**: Gesing, T. M. & Robben, L. (2024). Accurate determination of crystallite sizes and crystallite size distributions. *Journal of Applied Crystallography*, 57, 1466-1476.
 
 ### Original contributions
 
 The following features are original to this package:
 
-- Reciprocal-space Williamson-Hall formulation (DeltaK vs K) for wavelength-independent cross-source comparison
+- Reciprocal-space Williamson-Hall formulation (ΔK vs K) for wavelength-independent cross-source comparison
 - Reference-guided peak detection using computed mineral reference positions with noise cutoff
 - Automated zero-point offset estimation
 - Improved Warren-Averbach Fourier coefficient extraction with adaptive windowing, Tukey tapering, uniform s-grid interpolation, overlap detection, and quality filtering
 - Multi-phase analysis capability (separate guides for different mineral phases in the same pattern)
 - Enhanced PDF pipeline: iterative Chebyshev polynomial background subtraction in Q-space, sine Fourier transform with optional Lorch modification, PDF peak detection and Gaussian first-shell fitting
+- `Phase` abstraction with `from_cif` / `from_lattice_params` constructors and library-owned reference-peak generation (v0.3.0)
+- `XRDProfile.run_all()` configurable multi-method, multi-phase dispatcher (v0.3.0)
 
 ## License
 
@@ -154,6 +197,6 @@ MIT License. See LICENSE file.
 
 If you use this package in published research, please cite:
 
-> Izawa, M. R. M. (2026). xrd_profile: XRD peak profile analysis toolkit (v0.2.0). https://github.com/matthewizawa/xrd_profile
+> Izawa, M. R. M. (2026). xrd_profile: XRD peak profile analysis toolkit (v0.3.0). https://github.com/matthewizawa/xrd_profile
 
 and acknowledge the crystallite_size_calculator package by Wonanke (see Attribution above).
