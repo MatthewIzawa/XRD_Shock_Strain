@@ -24,3 +24,6 @@ dev = ["pytest", "pymatgen>=2023.0"]
 
 [project.urls]
 Homepage = "https://github.com/matthewizawa/xrd_profile"
+
+[tool.setuptools.package-data]
+xrd_profile = ["registry/*.json", "registry/README.md"]

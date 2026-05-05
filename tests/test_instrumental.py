@@ -88,6 +88,17 @@ class TestInstrumentalProfileJsonIO:
         assert contents['schema_version'] == '1'
 
 
+    def test_from_json_wrong_schema_version_raises(self, tmp_path):
+        """from_json must reject a JSON file with an unrecognised
+        schema_version."""
+        bad = tmp_path / 'bad.json'
+        bad.write_text(
+            '{"schema_version": "99", "U": 0.005, "V": -0.001, '
+            '"W": 0.005, "wavelength": 1.5406, "name": "wrong_schema"}')
+        with pytest.raises(ValueError, match='schema_version'):
+            InstrumentalProfile.from_json(bad)
+
+
 class TestInstrumentalProfileRegistry:
     def test_from_registry_unknown_name_raises_keyerror(self):
         with pytest.raises(KeyError, match='nonexistent_profile'):
