@@ -49,3 +49,14 @@ class TestInstrumentalProfileBasics:
         prof = InstrumentalProfile(U=0.005, V=0.0, W=0.005,
                                     wavelength=LAMBDA_CU)
         assert prof.name == ''
+
+    def test_fwhm_at_clamps_negative_polynomial_with_warning(self):
+        """When Caglioti coefficients produce a negative polynomial
+        (out of valid range), fwhm_at clamps to 0 AND warns."""
+        # U=0, V=-1, W=0 gives fwhm_sq = -tan(theta), negative for
+        # all theta > 0 (i.e., all 2theta > 0).
+        prof = InstrumentalProfile(U=0.0, V=-1.0, W=0.0,
+                                    wavelength=LAMBDA_CU)
+        with pytest.warns(UserWarning, match='Caglioti polynomial negative'):
+            result = prof.fwhm_at(45.0)
+        assert result == 0.0

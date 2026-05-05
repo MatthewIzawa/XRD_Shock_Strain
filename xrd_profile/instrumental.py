@@ -19,11 +19,9 @@ References
 Caglioti, G., Paoletti, A., Ricci, F. P. (1958). Choice of collimators
     for a crystal spectrometer for neutron diffraction. Nuclear
     Instruments 3, 223-228.
-Stokes, A. R. (1948). A numerical Fourier-analysis method for the
-    correction of widths and shapes of lines on X-ray powder
-    photographs. Proc. Phys. Soc. 61, 382-391.
 """
 import json
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -50,10 +48,31 @@ class InstrumentalProfile:
         self.wavelength = float(wavelength)
         self.name = str(name)
 
-    def fwhm_at(self, two_theta_deg: float) -> float:
-        """Caglioti FWHM (degrees) at the given 2-theta (degrees)."""
+    def fwhm_at(self, two_theta_deg) -> float:
+        """Caglioti FWHM (degrees) at the given 2-theta (degrees).
+
+        Parameters
+        ----------
+        two_theta_deg : float or array-like
+            2-theta value(s) in degrees. Scalar or numpy-array input is
+            accepted; the return shape matches the input.
+
+        Returns
+        -------
+        float or np.ndarray
+            FWHM in degrees, clamped to >= 0. If the Caglioti polynomial
+            evaluates negative at any input (an indication that the
+            coefficients are outside their valid angular range), a
+            UserWarning is emitted before clamping.
+        """
         theta = np.deg2rad(np.asarray(two_theta_deg) / 2.0)
         fwhm_sq = (self.U * np.tan(theta)**2
                    + self.V * np.tan(theta)
                    + self.W)
+        if np.any(fwhm_sq < 0.0):
+            warnings.warn(
+                'Caglioti polynomial negative at one or more 2theta '
+                'values; FWHM clamped to 0. Check coefficient validity '
+                'for this angular range.',
+                UserWarning, stacklevel=2)
         return np.sqrt(np.maximum(fwhm_sq, 0.0))
