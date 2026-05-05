@@ -125,3 +125,79 @@ class TestScherrer:
         size = modified_scherrer(fwhm, positions, LAMBDA_I11)
         _assert_close_scalar('modified_scherrer', size,
                               golden['modified_scherrer_default'])
+
+
+# --- v0.3.0 tier (added in v0.4.0) ---
+# Asserts: every key in golden_v0.3.0_results.json is reproducible at
+# the current tag with byte-equivalent numerical value (key-subset
+# value-equality). New top-level keys added at v0.4+ tags are allowed
+# in the live result and ignored here.
+
+from xrd_profile import Phase
+
+ANORTHITE_CIF = (Path(__file__).parent.parent / 'examples'
+                 / 'cifs' / 'Anorthite.cif')
+
+
+@pytest.fixture(scope='module')
+def golden_v030():
+    return json.loads(
+        (FIXTURE_DIR / 'golden_v0.3.0_results.json').read_text())
+
+
+@pytest.fixture(scope='module')
+def anorthite_phase():
+    return Phase.from_cif(str(ANORTHITE_CIF), name='anorthite')
+
+
+class TestV030GuidedViaPhase:
+    def test_wh_crystallite_size_matches_v030(
+            self, pattern, golden_v030, anorthite_phase):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.guided_williamson_hall(
+            phase=anorthite_phase, n_sigma=3.0, tolerance_d=0.03)
+        _assert_close_scalar(
+            'wh_crystallite_size',
+            result['crystallite_size'],
+            golden_v030['guided_wh_via_phase']['crystallite_size'])
+
+    def test_wa_crystallite_size_matches_v030(
+            self, pattern, golden_v030, anorthite_phase):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.guided_warren_averbach(
+            phase=anorthite_phase, n_sigma=3.0, tolerance_d=0.03)
+        _assert_close_scalar(
+            'wa_mean_crystallite_size',
+            result['mean_crystallite_size'],
+            golden_v030['guided_wa_via_phase']['mean_crystallite_size'])
+
+
+class TestV030ScherrerShapeTable:
+    def test_scherrer_spherical_matches_v030(self, pattern, golden_v030):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.scherrer(shape='spherical')
+        _assert_close_scalar(
+            'scherrer_spherical_mean',
+            result['mean_size'],
+            golden_v030['scherrer_spherical']['mean_size'])
+
+    def test_scherrer_cubic_matches_v030(self, pattern, golden_v030):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.scherrer(shape='cubic')
+        _assert_close_scalar(
+            'scherrer_cubic_mean',
+            result['mean_size'],
+            golden_v030['scherrer_cubic']['mean_size'])
+
+    def test_scherrer_default_matches_v030(self, pattern, golden_v030):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.scherrer()
+        _assert_close_scalar(
+            'scherrer_default_mean',
+            result['mean_size'],
+            golden_v030['scherrer_default']['mean_size'])

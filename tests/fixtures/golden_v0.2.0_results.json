@@ -6,7 +6,8 @@
     "tt_range": [
       10.0,
       79.999
-    ]
+    ],
+    "tier": "v0.2.0"
   },
   "guided_williamson_hall": {
     "strain": -0.00021951492180574743,
