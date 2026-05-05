@@ -25,10 +25,12 @@ from .peak_detection import (estimate_fwhm_simple, estimate_fwhm_voigt,
 from .scherrer import scherrer, modified_scherrer, SCHERRER_K_FOR_SHAPE
 from .pdf import (chebyshev_background, compute_pdf_sine,
                   measure_pdf_peaks, fit_first_pdf_peak)
+from .phases import Phase, build_reference_peaks
 from .profile import XRDProfile
 
 __all__ = [
     'XRDProfile',
+    'Phase', 'build_reference_peaks',
     'two_theta_to_d', 'd_to_two_theta', 'two_theta_to_Q',
     'two_theta_to_K', 'fwhm_to_deltaK',
     'estimate_noise', 'estimate_zero_offset',
