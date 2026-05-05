@@ -103,3 +103,39 @@ class TestInstrumentalProfileRegistry:
     def test_from_registry_unknown_name_raises_keyerror(self):
         with pytest.raises(KeyError, match='nonexistent_profile'):
             InstrumentalProfile.from_registry('nonexistent_profile')
+
+
+from xrd_profile.instrumental import _caglioti_fit
+
+
+class TestCagliotiFit:
+    def test_recovers_synthesis_coefficients_within_5pct(self):
+        """Fitting Caglioti to the synthetic LaB6 fixture should
+        recover the documented synthesis U, V, W within 5%."""
+        data = np.loadtxt(SYNTH_LAB6)
+        tt, intensity = data[:, 0], data[:, 1]
+
+        # Reference peak positions (LaB6 cubic, a=4.156825 angstroms,
+        # Cu K-alpha) — first 8 reflections in 2-theta order.
+        ref_tt = np.array([
+            21.358, 30.385, 37.443, 43.527, 48.999, 54.087,
+            63.198, 67.494,
+        ])
+
+        U, V, W, info = _caglioti_fit(tt, intensity, ref_tt)
+        assert abs(U - SYNTH_U) / SYNTH_U < 0.05, \
+            f'U: expected {SYNTH_U}, got {U}'
+        assert abs(W - SYNTH_W) / SYNTH_W < 0.05, \
+            f'W: expected {SYNTH_W}, got {W}'
+        # V is small and noise-prone; tolerance is wider.
+        assert abs(V - SYNTH_V) < 5.0e-4, \
+            f'V: expected {SYNTH_V}, got {V}'
+        assert info['n_peaks'] == len(ref_tt)
+
+    def test_fit_info_contains_documented_keys(self):
+        data = np.loadtxt(SYNTH_LAB6)
+        tt, intensity = data[:, 0], data[:, 1]
+        ref_tt = np.array([21.358, 30.385, 37.443, 43.527])
+        _, _, _, info = _caglioti_fit(tt, intensity, ref_tt)
+        assert set(info) >= {'n_peaks', 'measured_fwhms',
+                             'measured_positions', 'cov'}
