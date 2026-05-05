@@ -61,7 +61,7 @@ class Phase:
     def get_ref_peaks(self, wavelength: float,
                       two_theta_range: Tuple[float, float] = (5, 90),
                       min_intensity: float = 3.0) -> List[dict]:
-        """List of {d, two_theta, intensity, h, k, l} dicts above min_intensity."""
+        """List of {d, two_theta, intensity, h, k, l} dicts with intensity >= min_intensity."""
         _, _, XRDCalculator = _require_pymatgen()
         calc = XRDCalculator(wavelength=wavelength)
         pattern = calc.get_pattern(self.structure,
