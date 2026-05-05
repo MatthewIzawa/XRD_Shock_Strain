@@ -189,3 +189,23 @@ class TestXRDProfileGuidedWarrenAverbachPhaseKwarg:
         profile, an = self._make_profile_and_phase()
         with pytest.raises(NotImplementedError, match='Phase 2'):
             profile.guided_warren_averbach(phase=an, instrumental='x')
+
+
+class TestExampleCIFsLoad:
+    """Smoke test that all bundled example CIFs are parseable."""
+
+    @pytest.mark.parametrize('cif_name', [
+        'Forsterite.cif', 'Anorthite.cif', 'Pigeonite.cif',
+        'Quartz.cif', 'Hematite.cif',
+    ])
+    def test_example_cif_loads(self, cif_name):
+        from pathlib import Path
+        from xrd_profile.phases import Phase
+        cif_path = (Path(__file__).parent.parent / 'examples' /
+                    'cifs' / cif_name)
+        if not cif_path.exists():
+            pytest.skip(f'{cif_name} not present in examples/cifs/')
+        phase = Phase.from_cif(cif_path)
+        assert phase.name == cif_name.replace('.cif', '')
+        peaks = phase.get_ref_peaks(1.5406)
+        assert len(peaks) > 0
