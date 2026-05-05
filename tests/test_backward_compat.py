@@ -16,6 +16,7 @@ import pytest
 
 from xrd_profile import (XRDProfile, scherrer, modified_scherrer,
                          compute_pdf_sine, estimate_fwhm_simple)
+from xrd_profile import Phase
 
 FIXTURE_DIR = Path(__file__).parent / 'fixtures'
 LAMBDA_I11 = 0.826517
@@ -31,6 +32,8 @@ ANORTHITE_REF_PEAKS = [
     {'d': 4.04, 'two_theta': 11.74, 'intensity':  50.0, 'h': 0, 'k': 0, 'l': 2},
     {'d': 3.65, 'two_theta': 13.00, 'intensity':  45.0, 'h': 1, 'k': 3, 'l': 0},
 ]
+ANORTHITE_CIF = (Path(__file__).parent.parent / 'examples'
+                 / 'cifs' / 'Anorthite.cif')
 
 
 @pytest.fixture(scope='module')
@@ -133,11 +136,6 @@ class TestScherrer:
 # value-equality). New top-level keys added at v0.4+ tags are allowed
 # in the live result and ignored here.
 
-from xrd_profile import Phase
-
-ANORTHITE_CIF = (Path(__file__).parent.parent / 'examples'
-                 / 'cifs' / 'Anorthite.cif')
-
 
 @pytest.fixture(scope='module')
 def golden_v030():
@@ -201,3 +199,28 @@ class TestV030ScherrerShapeTable:
             'scherrer_default_mean',
             result['mean_size'],
             golden_v030['scherrer_default']['mean_size'])
+
+
+class TestV030RunAll:
+    def test_run_all_no_phases_wh_matches_v030(
+            self, pattern, golden_v030):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.run_all(methods=['wh', 'scherrer'])
+        # Unguided W-H returns a single dict (not phase-keyed) when
+        # phases is None — assert its crystallite_size matches the
+        # golden's snapshot.
+        _assert_close_scalar(
+            'run_all_wh_crystallite_size',
+            result['wh']['crystallite_size'],
+            golden_v030['run_all_no_phases']['wh']['crystallite_size'])
+
+    def test_run_all_no_phases_scherrer_matches_v030(
+            self, pattern, golden_v030):
+        tt, I = pattern
+        profile = XRDProfile(tt, I, wavelength=LAMBDA_I11)
+        result = profile.run_all(methods=['wh', 'scherrer'])
+        _assert_close_scalar(
+            'run_all_scherrer_mean',
+            result['scherrer']['mean_size'],
+            golden_v030['run_all_no_phases']['scherrer']['mean_size'])

@@ -26,9 +26,13 @@ PATTERN_FILE = FIXTURE_DIR / 'tirhert_subset.xy'
 ANORTHITE_CIF = (Path(__file__).parent.parent / 'examples'
                  / 'cifs' / 'Anorthite.cif')
 
+# Fixed reference d-spacing list for guided W-H, derived from anorthite
+# at I11 wavelength. Values frozen here so regeneration is deterministic.
 ANORTHITE_REF_D = [
     3.20, 3.18, 3.65, 4.04, 6.41, 5.69, 3.74, 3.21, 4.04, 2.94,
 ]
+
+# Fixed reference peak list for guided W-A: (d, two_theta, intensity, h, k, l).
 ANORTHITE_REF_PEAKS = [
     {'d': 3.20, 'two_theta': 14.84, 'intensity': 100.0,
      'h': 0, 'k': 4, 'l': 0},
@@ -44,6 +48,12 @@ ANORTHITE_REF_PEAKS = [
 
 
 def to_serializable(obj):
+    """Recursively convert numpy/tuple types to JSON-serialisable form.
+
+    Dict keys that are tuples (e.g., (h, k, l) Miller indices that
+    later v0.5+ goldens will carry) are stringified so json.dumps does
+    not raise TypeError.
+    """
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     if isinstance(obj, (np.floating, np.integer)):
@@ -59,6 +69,8 @@ def to_serializable(obj):
 
 
 def regenerate_v020():
+    """v0.2.0 tier: exercises the original array-based public API.
+    Frozen reference for the v0.2.0 release tag."""
     data = np.loadtxt(PATTERN_FILE)
     tt, I = data[:, 0], data[:, 1]
     profile = XRDProfile(tt, I, wavelength=LAMBDA_I11,
@@ -137,9 +149,15 @@ def regenerate_v030():
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--tier', choices=['v0.2.0', 'v0.3.0'],
-                        default='v0.2.0')
+    parser = argparse.ArgumentParser(
+        description='Regenerate a versioned golden fixture for '
+                    'tests/test_backward_compat.py. Requires explicit '
+                    'reasoning in the commit message because the '
+                    'fixture is treated as a frozen reference for the '
+                    'corresponding tag.')
+    parser.add_argument(
+        '--tier', choices=['v0.2.0', 'v0.3.0'], default='v0.2.0',
+        help='which fixture to overwrite (default: v0.2.0)')
     args = parser.parse_args()
     if args.tier == 'v0.2.0':
         regenerate_v020()
