@@ -1,4 +1,4 @@
-"""Unit tests for XRDProfile.run_all dispatcher (v0.3.0)."""
+"""Unit tests for XRDProfile.run_all dispatcher (v0.3.0 + v0.4.0)."""
 from pathlib import Path
 
 import numpy as np
@@ -100,6 +100,9 @@ class TestRunAllInstrumental:
             instrumental=inst)
         assert 'wh' in result
         assert 'scherrer' in result
+        # Per-phase dict shape: scherrer keyed by phase name when
+        # phases= is given (mirrors W-H per-phase shape).
+        assert 'anorthite' in result['scherrer']
 
     def test_run_all_with_instrumental_profile_rejects_wa(
             self, anorthite_phase):
