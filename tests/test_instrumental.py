@@ -304,3 +304,83 @@ class TestStokesDeconvolve:
         """Mismatched A_obs / A_inst shapes must raise ValueError."""
         with pytest.raises(ValueError, match='shape'):
             _stokes_deconvolve(np.ones(5), np.ones(6))
+
+
+from xrd_profile import XRDProfile
+
+LAMBDA_I11 = 0.826517
+TIRHERT = FIXTURE_DIR / 'tirhert_subset.xy'
+
+
+class TestGuidedWHWithInstrumental:
+    @pytest.fixture(scope='class')
+    def anorthite_phase(self):
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        return Phase.from_cif(str(cif), name='anorthite')
+
+    def test_runs_end_to_end_with_instrumental_standard(
+            self, anorthite_phase, lab6_standard):
+        """Guided W-H with InstrumentalStandard runs without error and
+        produces a finite crystallite size."""
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        # The LaB6 standard is at Cu K-alpha; for this smoke test we
+        # rebuild it at the I11 wavelength used by the Tirhert subset.
+        lab6_data = np.loadtxt(SYNTH_LAB6)
+        lab6_at_i11 = InstrumentalStandard(
+            phase=lab6_standard.phase,
+            two_theta=lab6_data[:, 0], intensity=lab6_data[:, 1],
+            wavelength=LAMBDA_I11, name='lab6_at_i11')
+        result = profile.guided_williamson_hall(
+            phase=anorthite_phase,
+            instrumental=lab6_at_i11,
+            n_sigma=3.0, tolerance_d=0.03)
+        assert np.isfinite(result['crystallite_size'])
+        assert result['crystallite_size'] > 0
+
+    def test_runs_with_instrumental_profile(self, anorthite_phase):
+        """Guided W-H with bare InstrumentalProfile (no measured pattern)
+        also runs end-to-end. Parameters are synchrotron-appropriate
+        (U, V, W ~10x smaller than typical lab-source) so the instrumental
+        FWHM does not over-correct the narrow I11 peaks."""
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
+                                    wavelength=LAMBDA_I11,
+                                    name='synch_i11_approx')
+        result = profile.guided_williamson_hall(
+            phase=anorthite_phase, instrumental=inst,
+            n_sigma=3.0, tolerance_d=0.03)
+        assert np.isfinite(result['crystallite_size'])
+
+    def test_corrected_size_differs_from_uncorrected(
+            self, anorthite_phase):
+        """Sanity: applying an instrumental correction changes the result
+        from the uncorrected run. Synchrotron-appropriate U, V, W are used
+        so the correction subtracts a small but non-zero FWHM contribution."""
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
+                                    wavelength=LAMBDA_I11)
+        uncorrected = profile.guided_williamson_hall(
+            phase=anorthite_phase,
+            n_sigma=3.0, tolerance_d=0.03)
+        corrected = profile.guided_williamson_hall(
+            phase=anorthite_phase, instrumental=inst,
+            n_sigma=3.0, tolerance_d=0.03)
+        # The corrected result must differ from the uncorrected one.
+        assert (corrected['crystallite_size']
+                != uncorrected['crystallite_size'])
+
+    def test_invalid_instrumental_type_raises(self, anorthite_phase):
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        with pytest.raises(TypeError, match='InstrumentalStandard'):
+            profile.guided_williamson_hall(
+                phase=anorthite_phase,
+                instrumental='not_a_real_profile')

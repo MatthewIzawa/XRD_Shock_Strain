@@ -97,8 +97,13 @@ class XRDProfile:
             New in v0.3.0. If provided, ref_d is computed from
             phase.get_ref_d(wavelength, two_theta_range=data_range).
             Mutually exclusive with ref_d=.
-        instrumental : reserved for Phase 2 / v1.0
-            Pass None (default). Any other value raises NotImplementedError.
+        instrumental : InstrumentalStandard, InstrumentalProfile, or None
+            New in v0.4.0. If provided, the Caglioti FWHM is subtracted
+            in quadrature from each observed peak FWHM before the W-H
+            regression. InstrumentalStandard objects are converted via
+            caglioti_fit(); InstrumentalProfile objects are used directly.
+            Peaks where the subtraction over-corrects (beta_obs <= beta_inst)
+            are excluded and flagged in result['warnings'].
         other_phase_d : list of np.ndarray or None
             d-spacings for interfering phases (excluded from fit).
         sample_flags : dict or None
@@ -120,10 +125,19 @@ class XRDProfile:
                         float(self.two_theta.max()))
             ref_d = phase.get_ref_d(self.wavelength,
                                      two_theta_range=tt_range)
-        if instrumental is not None:
-            raise NotImplementedError(
-                'instrumental= is reserved for Phase 2 / v1.0; '
-                'see xrd_profile roadmap')
+        from .instrumental import (InstrumentalStandard,
+                                    InstrumentalProfile)
+        if instrumental is None:
+            inst_profile = None
+        elif isinstance(instrumental, InstrumentalStandard):
+            inst_profile = instrumental.caglioti_fit()
+        elif isinstance(instrumental, InstrumentalProfile):
+            inst_profile = instrumental
+        else:
+            raise TypeError(
+                f'instrumental= must be InstrumentalStandard, '
+                f'InstrumentalProfile, or None; got '
+                f'{type(instrumental).__name__}')
         if ref_d is None:
             raise ValueError('must pass either ref_d or phase')
 
@@ -140,6 +154,7 @@ class XRDProfile:
             weighted_regression=weighted_regression,
             sample_flags=sample_flags,
             export_path=export_path,
+            inst_profile=inst_profile,
             **kwargs
         )
 

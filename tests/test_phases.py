@@ -153,9 +153,12 @@ class TestXRDProfileGuidedWilliamsonHallPhaseKwarg:
             profile.guided_williamson_hall(
                 ref_d=np.array([3.2, 4.0]), phase=an)
 
-    def test_instrumental_kwarg_raises_not_implemented(self):
+    def test_invalid_instrumental_type_raises_type_error(self):
+        """Now that instrumental= is implemented for guided_williamson_hall,
+        passing an unsupported type must raise TypeError, not
+        NotImplementedError."""
         profile, an = self._make_profile_and_phase()
-        with pytest.raises(NotImplementedError, match='Phase 2'):
+        with pytest.raises(TypeError, match='InstrumentalStandard'):
             profile.guided_williamson_hall(phase=an, instrumental='anything')
 
 

@@ -29,6 +29,38 @@ from .peak_detection import (estimate_fwhm_simple, estimate_fwhm_voigt,
                              score_peak_quality)
 
 
+def _apply_caglioti_correction(fwhm_deg, two_theta_deg, inst_profile):
+    """Caglioti-subtract instrumental FWHM from observed FWHM.
+
+    Uses Gaussian-quadrature combination:
+        beta_corr^2 = max(beta_obs^2 - beta_inst^2, eps)
+
+    Peaks where beta_obs <= beta_inst are flagged: their corrected FWHM
+    is replaced with NaN (caller is expected to filter).
+
+    Parameters
+    ----------
+    fwhm_deg : np.ndarray
+        Observed sample FWHMs (degrees).
+    two_theta_deg : np.ndarray
+        Peak 2-theta positions (degrees).
+    inst_profile : InstrumentalProfile
+        Instrumental Caglioti profile.
+
+    Returns
+    -------
+    fwhm_corr : np.ndarray
+        Corrected FWHMs. NaN where the peak was over-corrected.
+    """
+    fwhm_obs = np.asarray(fwhm_deg, dtype=float)
+    tt = np.asarray(two_theta_deg, dtype=float)
+    fwhm_inst = np.array([inst_profile.fwhm_at(t) for t in tt])
+    diff_sq = fwhm_obs**2 - fwhm_inst**2
+    fwhm_corr = np.where(diff_sq > 0, np.sqrt(np.maximum(diff_sq, 0)),
+                          np.nan)
+    return fwhm_corr
+
+
 def williamson_hall(two_theta, intensities, wavelength,
                     use_voigt=False, height_threshold=0.05):
     """
@@ -248,7 +280,8 @@ def guided_williamson_hall(two_theta, intensity, ref_d, wavelength,
                            min_r2_reliable=0.3,
                            min_r2_marginal=0.05,
                            sample_flags=None,
-                           export_path=None):
+                           export_path=None,
+                           inst_profile=None):
     """
     Reference-guided Williamson-Hall analysis in reciprocal space
     with cross-phase overlap rejection, peak quality scoring,
@@ -381,6 +414,40 @@ def guided_williamson_hall(two_theta, intensity, ref_d, wavelength,
         result['reliability_reasons'] = reliability_reasons
         _export_wh_csv(export_path, peaks, include, result, wavelength)
         return result
+
+    # NEW v0.4.0: Caglioti instrumental correction. Subtract the
+    # instrumental FWHM from each peak's measured FWHM in quadrature.
+    # Peaks where beta_obs <= beta_inst are flagged in warnings and
+    # removed from the analysis.
+    if inst_profile is not None:
+        fwhm_corr = _apply_caglioti_correction(
+            peaks['fwhm'], peaks['two_theta_obs'], inst_profile)
+        keep = ~np.isnan(fwhm_corr)
+        n_dropped = int(np.sum(~keep))
+        if n_dropped > 0:
+            warnings_list.append(
+                f'{n_dropped} peak(s) over-corrected by instrumental '
+                f'subtraction (beta_obs <= beta_inst); excluded from fit.')
+            result['warnings'] = warnings_list
+        # Filter every parallel array on `peaks` plus the local
+        # `quality` and `include` arrays, keeping them aligned.
+        peaks = {k: (v[keep] if isinstance(v, np.ndarray) and v.shape
+                     and v.shape[0] == len(keep) else v)
+                 for k, v in peaks.items()}
+        peaks['fwhm'] = fwhm_corr[keep]
+        quality = quality[keep]
+        include = include[keep]
+        n_used = int(np.sum(include))
+        result['peaks'] = peaks
+        result['peak_quality'] = quality
+        result['n_peaks_used'] = n_used
+        if n_used < 3:
+            reliability_reasons.append(
+                f'Only {n_used} peaks after instrumental correction '
+                f'(need >= 3 for fit)')
+            result['reliability_reasons'] = reliability_reasons
+            _export_wh_csv(export_path, peaks, include, result, wavelength)
+            return result
 
     # Extract included peaks
     K_all = 1.0 / peaks['d_obs']
