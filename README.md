@@ -12,6 +12,8 @@ A Python toolkit for quantitative analysis of powder X-ray diffraction peak prof
 - **Scherrer equation**: standard per-peak and modified log-linear regression, with `K` and crystallite shape factor selection (new in v0.3.0)
 - **Pair distribution function**: sine Fourier transform PDF with iterative Chebyshev background subtraction, Lorch modification, peak detection, and Gaussian first-shell fitting
 - **Bundled `run_all()` helper**: configurable subset of methods on configurable list of phases (new in v0.3.0)
+- **Instrumental broadening correction**: Caglioti FWHM correction or Stokes Fourier deconvolution against a measured LaB6/Si standard pattern, threaded through W-H, W-A, Scherrer, and `run_all` (new in v0.4.0)
+- **Crystallite size distributions**: per-family lognormal and normal fits to the Warren-Averbach `A_size(L)` (Krill & Birringer 1998; Langford, Louer & Scardi 2000) (new in v0.4.0)
 - **`XRDProfile` class**: unified interface wrapping all methods with plotting utilities
 
 ## Installation
@@ -152,6 +154,44 @@ sizes = scherrer(fwhm, two_theta, 1.5406, K=1.0)
 
 `SCHERRER_K_FOR_SHAPE` is exported for introspection: `{'spherical': 0.94, 'cubic': 0.83, 'cylindrical': 1.84, 'platey': 1.0}`.
 
+## Instrumental broadening correction (v0.4.0)
+
+If you have a measured LaB6 (or Si) standard pattern at the same instrument settings as your sample:
+
+```python
+import numpy as np
+from xrd_profile import (XRDProfile, Phase, InstrumentalStandard)
+
+sample = np.loadtxt('sample.xy')
+lab6_pattern = np.loadtxt('lab6_standard.xy')
+
+anorthite = Phase.from_cif('Anorthite.cif', name='anorthite')
+lab6 = InstrumentalStandard.from_cif_and_pattern(
+    cif='LaB6.cif',
+    two_theta=lab6_pattern[:, 0],
+    intensity=lab6_pattern[:, 1],
+    wavelength=1.5406, name='LaB6_Cu_Bruker')
+
+profile = XRDProfile(sample[:, 0], sample[:, 1], wavelength=1.5406)
+results = profile.run_all(
+    methods=['wh', 'wa', 'scherrer'],
+    phases=anorthite,
+    instrumental=lab6)
+```
+
+Each entry in `results['wa']['anorthite']['families']` carries an additional `'size_distribution'` key with lognormal and normal fits to the column-length distribution `A_size(L)`.
+
+If you only have published Caglioti coefficients (no measured standard), use `InstrumentalProfile` — sufficient for W-H and Scherrer; W-A will reject it with a clear error.
+
+```python
+from xrd_profile import InstrumentalProfile
+inst = InstrumentalProfile(U=5e-3, V=-1e-3, W=5e-3, wavelength=1.5406)
+results = profile.run_all(methods=['wh', 'scherrer'],
+                           phases=anorthite, instrumental=inst)
+```
+
+See `examples/instrumental_correction.py` for a runnable end-to-end demo.
+
 ## Dependencies
 
 - numpy
@@ -197,6 +237,6 @@ MIT License. See LICENSE file.
 
 If you use this package in published research, please cite:
 
-> Izawa, M. R. M. (2026). xrd_profile: XRD peak profile analysis toolkit (v0.3.0). https://github.com/matthewizawa/xrd_profile
+> Izawa, M. R. M. (2026). xrd_profile: XRD peak profile analysis toolkit (v0.4.0). https://github.com/matthewizawa/xrd_profile
 
 and acknowledge the crystallite_size_calculator package by Wonanke (see Attribution above).
