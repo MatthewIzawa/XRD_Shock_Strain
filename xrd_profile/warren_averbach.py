@@ -477,9 +477,13 @@ def guided_warren_averbach(two_theta, intensity, ref_peaks, wavelength,
                 continue
 
             if inst_standard is not None:
+                # Inline import resolves a circular dependency:
+                # instrumental.py imports from warren_averbach.py
+                # (extract_peak_profile, fourier_coefficients).
                 from .instrumental import _stokes_deconvolve
                 _, A_inst_L = inst_standard.fourier_coefficients(
-                    peak_d=d_ref, n_coeffs=n_coeffs)
+                    peak_d=d_ref, n_coeffs=n_coeffs,
+                    width_fwhm=width_fwhm)
                 A_L = _stokes_deconvolve(A_L, A_inst_L,
                                           damping_threshold=0.05)
 

@@ -424,10 +424,15 @@ class TestGuidedWAWithInstrumental:
         result = profile.guided_warren_averbach(
             phase=anorthite_phase, instrumental=lab6_at_i11,
             n_sigma=3.0, tolerance_d=0.03)
-        assert np.isfinite(result['mean_crystallite_size']) \
-               or np.isnan(result['mean_crystallite_size'])
-        # At minimum, the call returns a result dict.
+        # The Stokes-deconvolved W-A may yield NaN if too few peaks
+        # survive the damping threshold; allow either NaN or a finite
+        # value, but require the result-dict structure to be intact.
+        assert isinstance(result, dict)
         assert 'families' in result
+        assert isinstance(result['families'], list)
+        # mean_crystallite_size is either a finite float or NaN.
+        mcs = result['mean_crystallite_size']
+        assert isinstance(mcs, float) or np.isnan(mcs)
 
     def test_instrumental_profile_raises_for_wa(self, anorthite_phase):
         data = np.loadtxt(TIRHERT)
