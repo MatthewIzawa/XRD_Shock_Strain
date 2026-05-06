@@ -526,3 +526,55 @@ class TestScherrerWithPhaseAndInstrumental:
         result = profile.scherrer()
         assert 'sizes' in result
         assert 'mean_size' in result
+
+
+class TestV040IntegrationOnTirhert:
+    """End-to-end smoke test: Phase + InstrumentalStandard +
+    size_distribution all working together on the bundled Tirhert
+    fixture."""
+
+    def test_full_v040_pipeline(self):
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        anorthite = Phase.from_cif(str(cif), name='anorthite')
+
+        lab6_data = np.loadtxt(SYNTH_LAB6)
+        lab6_phase = Phase.from_lattice_params(
+            a=4.156825, b=4.156825, c=4.156825,
+            alpha=90, beta=90, gamma=90,
+            species=['La', 'B', 'B', 'B', 'B', 'B', 'B'],
+            coords=[[0.0, 0.0, 0.0],
+                    [0.5, 0.5, 0.1993],
+                    [0.5, 0.5, 0.8007],
+                    [0.5, 0.1993, 0.5],
+                    [0.5, 0.8007, 0.5],
+                    [0.1993, 0.5, 0.5],
+                    [0.8007, 0.5, 0.5]],
+            name='LaB6')
+        lab6 = InstrumentalStandard(
+            phase=lab6_phase,
+            two_theta=lab6_data[:, 0],
+            intensity=lab6_data[:, 1],
+            wavelength=LAMBDA_I11, name='lab6_at_i11')
+
+        sample = np.loadtxt(TIRHERT)
+        profile = XRDProfile(sample[:, 0], sample[:, 1],
+                              wavelength=LAMBDA_I11,
+                              sample_name='Tirhert_subset')
+
+        # Full run_all with phase + instrumental for W-H, W-A, Scherrer.
+        result = profile.run_all(
+            methods=['wh', 'wa', 'scherrer'],
+            phases=anorthite,
+            instrumental=lab6)
+
+        assert 'wh' in result
+        assert 'wa' in result
+        assert 'scherrer' in result
+        # WH and WA results are keyed by phase name when phases are given.
+        assert 'anorthite' in result['wh']
+        assert 'anorthite' in result['wa']
+        wa = result['wa']['anorthite']
+        # If any families resolved, they each have a size_distribution.
+        for fam in wa['families']:
+            assert 'size_distribution' in fam
