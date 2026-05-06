@@ -348,6 +348,11 @@ class TestGuidedWHWithInstrumental:
         data = np.loadtxt(TIRHERT)
         profile = XRDProfile(data[:, 0], data[:, 1],
                               wavelength=LAMBDA_I11)
+        # Synchrotron-scale Caglioti parameters: I11's narrow beam
+        # gives instrumental FWHM ~0.007 deg at moderate angles, ~10x
+        # smaller than lab-Bruker scales. Lab-scale values (U~5e-3)
+        # would exceed sample broadening on the Tirhert subset and
+        # over-correct every peak.
         inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
                                     wavelength=LAMBDA_I11,
                                     name='synch_i11_approx')
@@ -358,12 +363,25 @@ class TestGuidedWHWithInstrumental:
 
     def test_corrected_size_differs_from_uncorrected(
             self, anorthite_phase):
-        """Sanity: applying an instrumental correction changes the result
-        from the uncorrected run. Synchrotron-appropriate U, V, W are used
-        so the correction subtracts a small but non-zero FWHM contribution."""
+        """Sanity: instrumental correction CHANGES the apparent size.
+
+        Note: the directional claim (corrected size > uncorrected) is
+        physically true in principle, but at synchrotron-scale
+        instrumental broadening on this fixture the correction is
+        small and the weighted-regression intercept can flip sign in
+        either direction across noise-driven differences. We assert
+        only that the result changes — the strong directional claim
+        is appropriate for lab-scale corrections (which the bundled
+        Tirhert fixture cannot produce).
+        """
         data = np.loadtxt(TIRHERT)
         profile = XRDProfile(data[:, 0], data[:, 1],
                               wavelength=LAMBDA_I11)
+        # Synchrotron-scale Caglioti parameters: I11's narrow beam
+        # gives instrumental FWHM ~0.007 deg at moderate angles, ~10x
+        # smaller than lab-Bruker scales. Lab-scale values (U~5e-3)
+        # would exceed sample broadening on the Tirhert subset and
+        # over-correct every peak.
         inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
                                     wavelength=LAMBDA_I11)
         uncorrected = profile.guided_williamson_hall(

@@ -56,6 +56,10 @@ def _apply_caglioti_correction(fwhm_deg, two_theta_deg, inst_profile):
     tt = np.asarray(two_theta_deg, dtype=float)
     fwhm_inst = np.array([inst_profile.fwhm_at(t) for t in tt])
     diff_sq = fwhm_obs**2 - fwhm_inst**2
+    # The np.maximum(diff_sq, 0) inside the where guards against
+    # floating-point jitter where diff_sq is ~0+epsilon: sqrt would
+    # otherwise occasionally produce NaN on a value mathematically
+    # identical to zero.
     fwhm_corr = np.where(diff_sq > 0, np.sqrt(np.maximum(diff_sq, 0)),
                           np.nan)
     return fwhm_corr
@@ -441,6 +445,7 @@ def guided_williamson_hall(two_theta, intensity, ref_d, wavelength,
         result['peaks'] = peaks
         result['peak_quality'] = quality
         result['n_peaks_used'] = n_used
+        result['n_peaks'] = n_used          # keep alias in sync
         if n_used < 3:
             reliability_reasons.append(
                 f'Only {n_used} peaks after instrumental correction '
