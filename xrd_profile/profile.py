@@ -229,37 +229,111 @@ class XRDProfile:
             inst_standard=std,
         )
 
-    def scherrer(self, K=None, shape=None, height_threshold=0.05):
-        """Run Scherrer analysis on all detected peaks.
+    def scherrer(self, K=None, shape=None, height_threshold=0.05,
+                 *, phase=None, instrumental=None):
+        """Run Scherrer analysis on detected peaks.
 
-        K and shape: see xrd_profile.scherrer.scherrer for resolution rules.
-        """
+        K and shape: see xrd_profile.scherrer.scherrer for resolution
+        rules. phase=Phase filters detected peaks to those matching the
+        phase's reference d-spacings within tolerance. instrumental=
+        accepts InstrumentalStandard or InstrumentalProfile and
+        Caglioti-subtracts the instrumental FWHM."""
+        from .instrumental import (InstrumentalStandard,
+                                    InstrumentalProfile)
+        from .scherrer import (_filter_to_phase_peaks,
+                                _caglioti_subtract_fwhm)
+
         fwhm, positions = estimate_fwhm_simple(
-            self.two_theta, self.intensity, height_threshold
-        )
+            self.two_theta, self.intensity, height_threshold)
         if len(fwhm) == 0:
-            return {'sizes': np.array([]), 'peak_positions': np.array([]),
+            return {'sizes': np.array([]),
+                    'peak_positions': np.array([]),
                     'd_spacings': np.array([]), 'fwhm': np.array([]),
                     'mean_size': np.nan, 'median_size': np.nan}
+
+        if phase is not None:
+            ref_d = phase.get_ref_d(
+                self.wavelength,
+                two_theta_range=(float(self.two_theta.min()),
+                                 float(self.two_theta.max())))
+            fwhm, positions = _filter_to_phase_peaks(
+                fwhm, positions, ref_d, self.wavelength,
+                tolerance_d=0.03)
+            if len(fwhm) == 0:
+                return {'sizes': np.array([]),
+                        'peak_positions': np.array([]),
+                        'd_spacings': np.array([]),
+                        'fwhm': np.array([]),
+                        'mean_size': np.nan, 'median_size': np.nan}
+
+        if instrumental is not None:
+            if isinstance(instrumental, InstrumentalStandard):
+                inst_profile = instrumental.caglioti_fit()
+            elif isinstance(instrumental, InstrumentalProfile):
+                inst_profile = instrumental
+            else:
+                raise TypeError(
+                    f'instrumental= must be InstrumentalStandard, '
+                    f'InstrumentalProfile, or None; got '
+                    f'{type(instrumental).__name__}')
+            fwhm, positions = _caglioti_subtract_fwhm(
+                fwhm, positions, inst_profile)
+            if len(fwhm) == 0:
+                return {'sizes': np.array([]),
+                        'peak_positions': np.array([]),
+                        'd_spacings': np.array([]),
+                        'fwhm': np.array([]),
+                        'mean_size': np.nan, 'median_size': np.nan}
 
         sizes = scherrer(fwhm, positions, self.wavelength, K=K, shape=shape)
         d_sp = two_theta_to_d(positions, self.wavelength)
         return {
             'sizes': sizes, 'peak_positions': positions,
             'd_spacings': d_sp, 'fwhm': fwhm,
-            'mean_size': np.mean(sizes), 'median_size': np.median(sizes),
+            'mean_size': float(np.mean(sizes)),
+            'median_size': float(np.median(sizes)),
         }
 
-    def modified_scherrer(self, K=None, shape=None, height_threshold=0.05):
-        """Run modified Scherrer equation. Returns average size (angstroms).
+    def modified_scherrer(self, K=None, shape=None, height_threshold=0.05,
+                          *, phase=None, instrumental=None):
+        """Run modified Scherrer with optional phase filtering and
+        instrumental Caglioti subtraction."""
+        from .instrumental import (InstrumentalStandard,
+                                    InstrumentalProfile)
+        from .scherrer import (_filter_to_phase_peaks,
+                                _caglioti_subtract_fwhm)
 
-        K and shape: see xrd_profile.scherrer.modified_scherrer.
-        """
         fwhm, positions = estimate_fwhm_simple(
-            self.two_theta, self.intensity, height_threshold
-        )
+            self.two_theta, self.intensity, height_threshold)
         if len(fwhm) < 2:
             return np.nan
+
+        if phase is not None:
+            ref_d = phase.get_ref_d(
+                self.wavelength,
+                two_theta_range=(float(self.two_theta.min()),
+                                 float(self.two_theta.max())))
+            fwhm, positions = _filter_to_phase_peaks(
+                fwhm, positions, ref_d, self.wavelength,
+                tolerance_d=0.03)
+            if len(fwhm) < 2:
+                return np.nan
+
+        if instrumental is not None:
+            if isinstance(instrumental, InstrumentalStandard):
+                inst_profile = instrumental.caglioti_fit()
+            elif isinstance(instrumental, InstrumentalProfile):
+                inst_profile = instrumental
+            else:
+                raise TypeError(
+                    f'instrumental= must be InstrumentalStandard, '
+                    f'InstrumentalProfile, or None; got '
+                    f'{type(instrumental).__name__}')
+            fwhm, positions = _caglioti_subtract_fwhm(
+                fwhm, positions, inst_profile)
+            if len(fwhm) < 2:
+                return np.nan
+
         return modified_scherrer(fwhm, positions, self.wavelength,
                                   K=K, shape=shape)
 

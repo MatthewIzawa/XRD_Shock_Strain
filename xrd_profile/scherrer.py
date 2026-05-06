@@ -96,3 +96,38 @@ def modified_scherrer(fwhm_deg, two_theta_positions, wavelength,
     ln_1_cos = np.log(1 / np.cos(np.radians(np.asarray(two_theta_positions) / 2)))
     slope, intercept, _, _, _ = linregress(ln_1_cos, ln_beta)
     return (K_eff * wavelength) / np.exp(intercept)
+
+
+def _filter_to_phase_peaks(fwhm_deg, positions_deg, ref_d, wavelength,
+                            tolerance_d=0.03):
+    """Keep only peaks whose d-spacing matches a reference d within
+    `tolerance_d`. Returns filtered (fwhm, positions) arrays —
+    (fwhm, positions) order matches `estimate_fwhm_simple`'s output."""
+    from .conversions import two_theta_to_d
+    fwhm = np.asarray(fwhm_deg)
+    positions = np.asarray(positions_deg)
+    if len(positions) == 0:
+        return fwhm, positions
+    d_obs = two_theta_to_d(positions, wavelength)
+    ref_d = np.asarray(ref_d)
+    keep_mask = np.zeros(len(d_obs), dtype=bool)
+    for i, d in enumerate(d_obs):
+        if np.any(np.abs(ref_d - d) < tolerance_d):
+            keep_mask[i] = True
+    return fwhm[keep_mask], positions[keep_mask]
+
+
+def _caglioti_subtract_fwhm(fwhm_deg, positions_deg, inst_profile):
+    """Caglioti-subtract instrumental FWHM from each measured FWHM.
+    Drops peaks where beta_obs <= beta_inst (over-correction).
+
+    Returns (fwhm_corr, positions_kept) — the (fwhm, positions) order
+    matches `estimate_fwhm_simple` and the call sites in profile.py.
+    """
+    fwhm_obs = np.asarray(fwhm_deg, dtype=float)
+    pos = np.asarray(positions_deg, dtype=float)
+    fwhm_inst = np.array([inst_profile.fwhm_at(t) for t in pos])
+    diff_sq = fwhm_obs**2 - fwhm_inst**2
+    keep = diff_sq > 0
+    fwhm_corr = np.sqrt(np.maximum(diff_sq[keep], 0))
+    return fwhm_corr, pos[keep]

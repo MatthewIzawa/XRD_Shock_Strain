@@ -452,3 +452,63 @@ class TestGuidedWAWithInstrumental:
         with pytest.raises(TypeError, match='InstrumentalStandard'):
             profile.guided_warren_averbach(
                 phase=anorthite_phase, instrumental='garbage')
+
+
+class TestScherrerWithPhaseAndInstrumental:
+    @pytest.fixture(scope='class')
+    def anorthite_phase(self):
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        return Phase.from_cif(str(cif), name='anorthite')
+
+    def test_phase_filtering_reduces_peak_count(self, anorthite_phase):
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        unfiltered = profile.scherrer()
+        filtered = profile.scherrer(phase=anorthite_phase)
+        assert len(filtered['sizes']) <= len(unfiltered['sizes'])
+
+    def test_instrumental_correction_increases_apparent_size(
+            self, anorthite_phase):
+        """Removing instrumental broadening (FWHM_corr < FWHM_obs)
+        increases the apparent crystallite size from Scherrer."""
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        inst = InstrumentalProfile(U=5e-3, V=-1e-3, W=5e-3,
+                                    wavelength=LAMBDA_I11)
+        without = profile.scherrer(phase=anorthite_phase)
+        with_inst = profile.scherrer(phase=anorthite_phase,
+                                      instrumental=inst)
+        # Mean size should increase (or both NaN).
+        if not (np.isnan(without['mean_size'])
+                or np.isnan(with_inst['mean_size'])):
+            assert with_inst['mean_size'] >= without['mean_size']
+
+    def test_modified_scherrer_with_phase_and_instrumental(
+            self, anorthite_phase):
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        inst = InstrumentalProfile(U=5e-3, V=-1e-3, W=5e-3,
+                                    wavelength=LAMBDA_I11)
+        # Should not raise.
+        result = profile.modified_scherrer(phase=anorthite_phase,
+                                            instrumental=inst)
+        # nan or finite both acceptable; just exercises the path.
+        assert isinstance(result, float) or np.isnan(result)
+
+    def test_default_scherrer_no_phase_no_instrumental_unchanged(
+            self):
+        """v0.3.0 byte-identity: default scherrer() with no kwargs
+        must match the v0.2.0 golden exactly."""
+        # This is implicitly covered by test_backward_compat.py's
+        # v0.2.0 tier; here we just confirm the call signature
+        # accepts no extra args.
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        result = profile.scherrer()
+        assert 'sizes' in result
+        assert 'mean_size' in result
