@@ -26,13 +26,13 @@ from .scherrer import scherrer, modified_scherrer, SCHERRER_K_FOR_SHAPE
 from .pdf import (chebyshev_background, compute_pdf_sine,
                   measure_pdf_peaks, fit_first_pdf_peak)
 from .phases import Phase, build_reference_peaks
-from .instrumental import InstrumentalProfile
+from .instrumental import InstrumentalProfile, InstrumentalStandard
 from .profile import XRDProfile
 
 __all__ = [
     'XRDProfile',
     'Phase', 'build_reference_peaks',
-    'InstrumentalProfile',
+    'InstrumentalProfile', 'InstrumentalStandard',
     'two_theta_to_d', 'd_to_two_theta', 'two_theta_to_Q',
     'two_theta_to_K', 'fwhm_to_deltaK',
     'estimate_noise', 'estimate_zero_offset',

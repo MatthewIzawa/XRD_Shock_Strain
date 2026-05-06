@@ -152,3 +152,87 @@ class TestCagliotiFit:
         ref_tt = np.array([22.5, 25.5, 28.5])  # 3 phantom positions
         with pytest.raises(ValueError, match='at least 4'):
             _caglioti_fit(tt, intensity, ref_tt)
+
+
+from xrd_profile import Phase, InstrumentalStandard
+
+
+@pytest.fixture(scope='module')
+def lab6_phase():
+    """Build a LaB6 Phase inline (Pm-3m, a=4.156825) without needing
+    a bundled CIF. Uses Phase.from_lattice_params."""
+    return Phase.from_lattice_params(
+        a=4.156825, b=4.156825, c=4.156825,
+        alpha=90, beta=90, gamma=90,
+        species=['La', 'B', 'B', 'B', 'B', 'B', 'B'],
+        coords=[[0.0, 0.0, 0.0],
+                [0.5, 0.5, 0.1993],
+                [0.5, 0.5, 0.8007],
+                [0.5, 0.1993, 0.5],
+                [0.5, 0.8007, 0.5],
+                [0.1993, 0.5, 0.5],
+                [0.8007, 0.5, 0.5]],
+        name='LaB6')
+
+
+@pytest.fixture(scope='module')
+def lab6_standard(lab6_phase):
+    data = np.loadtxt(SYNTH_LAB6)
+    return InstrumentalStandard(
+        phase=lab6_phase,
+        two_theta=data[:, 0], intensity=data[:, 1],
+        wavelength=LAMBDA_CU, name='synthetic_lab6')
+
+
+class TestInstrumentalStandard:
+    def test_construct_from_phase_and_pattern(self, lab6_phase):
+        data = np.loadtxt(SYNTH_LAB6)
+        std = InstrumentalStandard(
+            phase=lab6_phase,
+            two_theta=data[:, 0], intensity=data[:, 1],
+            wavelength=LAMBDA_CU, name='test')
+        assert std.phase is lab6_phase
+        assert std.wavelength == LAMBDA_CU
+        assert std.name == 'test'
+        assert len(std.two_theta) == len(data)
+
+    def test_caglioti_fit_returns_instrumental_profile(
+            self, lab6_standard):
+        prof = lab6_standard.caglioti_fit()
+        assert isinstance(prof, InstrumentalProfile)
+        assert abs(prof.U - SYNTH_U) / SYNTH_U < 0.05
+        assert abs(prof.W - SYNTH_W) / SYNTH_W < 0.05
+
+    def test_caglioti_fit_is_cached(self, lab6_standard):
+        p1 = lab6_standard.caglioti_fit()
+        p2 = lab6_standard.caglioti_fit()
+        assert p1 is p2
+
+    def test_fourier_coefficients_returns_arrays_of_requested_length(
+            self, lab6_standard):
+        # LaB6 (1,0,0) at Cu K-alpha: d ~ 4.157 angstroms
+        L, A = lab6_standard.fourier_coefficients(peak_d=4.157,
+                                                    n_coeffs=20)
+        assert len(L) == 20
+        assert len(A) == 20
+        assert A[0] > 0  # A(0) = peak area, should be positive
+
+    def test_fourier_coefficients_decay_monotonically_at_low_L(
+            self, lab6_standard):
+        L, A = lab6_standard.fourier_coefficients(peak_d=4.157,
+                                                    n_coeffs=10)
+        # The first 5 coefficients should be a non-increasing sequence
+        # in absolute value (size profile of a single peak).
+        abs_A = np.abs(A[:5])
+        diffs = np.diff(abs_A)
+        assert np.sum(diffs > 0) <= 1  # allow one bump, no more.
+
+
+class TestInstrumentalProfileFromStandard:
+    def test_from_standard_delegates_to_caglioti_fit(
+            self, lab6_standard):
+        prof_a = InstrumentalProfile.from_standard(lab6_standard)
+        prof_b = lab6_standard.caglioti_fit()
+        assert prof_a.U == prof_b.U
+        assert prof_a.V == prof_b.V
+        assert prof_a.W == prof_b.W

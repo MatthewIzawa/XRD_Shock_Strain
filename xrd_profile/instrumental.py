@@ -107,6 +107,13 @@ class InstrumentalProfile:
                    name=data.get('name', ''))
 
     @classmethod
+    def from_standard(cls, std) -> 'InstrumentalProfile':
+        """Convenience: fit Caglioti to the standard, return the
+        resulting InstrumentalProfile. Equivalent to
+        `std.caglioti_fit()`."""
+        return std.caglioti_fit()
+
+    @classmethod
     def from_registry(cls, name: str) -> 'InstrumentalProfile':
         """Look up a pre-fit profile by name in
         `xrd_profile/registry/<name>.json`. v0.4.0 ships an empty
@@ -253,3 +260,92 @@ def _caglioti_fit(two_theta, intensity, ref_two_theta,
         'cov': pcov,
     }
     return U, V, W, info
+
+
+class InstrumentalStandard:
+    """Structural Phase plus a measured diffraction pattern of a known
+    standard, sufficient for both Caglioti FWHM correction and Stokes
+    Fourier deconvolution.
+
+    Parameters
+    ----------
+    phase : xrd_profile.Phase
+        The standard's structure (e.g., LaB6, Si). Provides reference
+        Bragg positions for the Caglioti fit and for matching peaks
+        when `fourier_coefficients(peak_d, ...)` is called.
+    two_theta : np.ndarray
+        Measured 2-theta scan of the standard (degrees).
+    intensity : np.ndarray
+        Measured intensity scan.
+    wavelength : float
+        X-ray wavelength (angstroms). Should match the sample being
+        analysed.
+    name : str
+        Optional human-readable label.
+    """
+
+    def __init__(self, phase, two_theta, intensity,
+                 wavelength: float, name: str = ''):
+        self.phase = phase
+        self.two_theta = np.asarray(two_theta, dtype=float)
+        self.intensity = np.asarray(intensity, dtype=float)
+        self.wavelength = float(wavelength)
+        self.name = str(name)
+        self._caglioti_cache = None
+        self._fourier_cache = {}
+
+    @classmethod
+    def from_cif_and_pattern(cls, cif: str,
+                             two_theta, intensity,
+                             wavelength: float,
+                             name: str = '') -> 'InstrumentalStandard':
+        """Convenience constructor: load Phase from CIF, attach the
+        measured pattern."""
+        from .phases import Phase
+        phase = Phase.from_cif(cif, name=name or Path(cif).stem)
+        return cls(phase=phase, two_theta=two_theta, intensity=intensity,
+                   wavelength=wavelength, name=name)
+
+    def caglioti_fit(self) -> 'InstrumentalProfile':
+        """Fit Caglioti U, V, W to the standard's measured FWHMs at
+        each reference peak. Cached. Returns an InstrumentalProfile."""
+        if self._caglioti_cache is not None:
+            return self._caglioti_cache
+        ref_peaks = self.phase.get_ref_peaks(
+            self.wavelength,
+            two_theta_range=(float(self.two_theta.min()),
+                             float(self.two_theta.max())))
+        ref_tt = np.array([p['two_theta'] for p in ref_peaks])
+        U, V, W, _info = _caglioti_fit(self.two_theta, self.intensity,
+                                        ref_tt)
+        prof = InstrumentalProfile(U=U, V=V, W=W,
+                                    wavelength=self.wavelength,
+                                    name=self.name)
+        self._caglioti_cache = prof
+        return prof
+
+    def fourier_coefficients(self, peak_d: float,
+                              n_coeffs: int = 20):
+        """Return (L, A_inst_L) Fourier coefficients of the standard's
+        peak nearest `peak_d` (angstroms). `L` is column length in
+        angstroms; `A_inst_L` is the (real) Fourier coefficient.
+        Cached per peak_d."""
+        cache_key = (round(float(peak_d), 6), int(n_coeffs))
+        if cache_key in self._fourier_cache:
+            return self._fourier_cache[cache_key]
+
+        from .conversions import d_to_two_theta
+        from .warren_averbach import (extract_peak_profile,
+                                       fourier_coefficients)
+        target_tt = d_to_two_theta(peak_d, self.wavelength)
+        if np.isnan(target_tt):
+            raise ValueError(
+                f'peak_d {peak_d} corresponds to no valid 2-theta at '
+                f'wavelength {self.wavelength}')
+        prof = extract_peak_profile(
+            self.two_theta, self.intensity, target_tt, self.wavelength,
+            width_fwhm=6.0)
+        L, A_L, _conv = fourier_coefficients(
+            prof['s'], prof['profile'], prof['s0'], n_coeffs=n_coeffs)
+        self._fourier_cache[cache_key] = (L, A_L)
+        return L, A_L
