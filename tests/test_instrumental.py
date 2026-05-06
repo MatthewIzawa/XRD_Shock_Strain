@@ -252,3 +252,50 @@ class TestInstrumentalProfileFromStandard:
         assert prof_a.U == prof_b.U
         assert prof_a.V == prof_b.V
         assert prof_a.W == prof_b.W
+
+
+from xrd_profile.instrumental import _stokes_deconvolve
+
+
+class TestStokesDeconvolve:
+    def test_recovers_known_sample_from_convolved_profile(self):
+        """Synthesise A_sample(L) (lognormal-derived), convolve with a
+        known A_inst(L), Stokes-deconvolve, recover A_sample within 1%
+        on the well-conditioned (low-L) coefficients."""
+        L = np.linspace(0, 200, 50)
+        # Synthetic sample column-length distribution: lognormal-ish.
+        A_sample = np.exp(-L / 100.0)
+        # Synthetic instrumental: narrower (smaller decay length).
+        A_inst = np.exp(-L / 500.0)
+        # Observed = convolution = product in Fourier space.
+        A_obs = A_sample * A_inst
+
+        A_corr = _stokes_deconvolve(A_obs, A_inst,
+                                      damping_threshold=0.05)
+        # Recover the first 10 coefficients (well-conditioned).
+        np.testing.assert_allclose(A_corr[:10], A_sample[:10],
+                                    rtol=1e-6)
+
+    def test_damps_high_L_when_instrumental_too_small(self):
+        """When A_inst(L) drops below threshold * A_inst(0), the
+        corresponding A_corr should be 0, not a noise amplification."""
+        L = np.linspace(0, 200, 50)
+        A_inst = np.exp(-L / 20.0)  # decays fast; A_inst(0)=1
+        # By L>=60 (index ~15), A_inst < 0.05 * A_inst(0) = 0.05.
+        A_obs = np.full_like(L, 0.1)  # arbitrary "observed"
+
+        A_corr = _stokes_deconvolve(A_obs, A_inst,
+                                      damping_threshold=0.05)
+        # Indices where damping kicked in should be exactly 0.
+        damped_mask = A_inst < 0.05 * A_inst[0]
+        assert np.all(A_corr[damped_mask] == 0.0)
+        assert np.any(A_corr[~damped_mask] != 0.0)
+
+    def test_handles_a_inst_zero_at_origin(self):
+        """If A_inst(0) is 0, division by zero is avoided. Behaviour:
+        return all zeros and a warning (or raise). We choose: raise."""
+        L = np.linspace(0, 100, 20)
+        A_inst = np.zeros_like(L)
+        A_obs = np.full_like(L, 0.5)
+        with pytest.raises(ValueError, match='A_inst.0. is zero'):
+            _stokes_deconvolve(A_obs, A_inst)

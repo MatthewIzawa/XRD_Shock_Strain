@@ -129,6 +129,43 @@ class InstrumentalProfile:
         return cls.from_json(candidate)
 
 
+def _stokes_deconvolve(A_obs, A_inst, damping_threshold: float = 0.05):
+    """Stokes Fourier deconvolution of a peak profile.
+
+    A_corr(L) = A_obs(L) / A_inst(L), with a damping floor: when
+    A_inst(L) < damping_threshold * A_inst(0), the coefficient is set
+    to 0 to suppress noise amplification at high L (Stokes 1948).
+
+    Parameters
+    ----------
+    A_obs : np.ndarray
+        Observed sample profile Fourier coefficients.
+    A_inst : np.ndarray
+        Instrumental profile Fourier coefficients (same length).
+    damping_threshold : float
+        Fraction of A_inst(0) below which deconvolution is suppressed.
+
+    Returns
+    -------
+    A_corr : np.ndarray
+        Deconvolved sample-only Fourier coefficients.
+    """
+    A_obs = np.asarray(A_obs, dtype=float)
+    A_inst = np.asarray(A_inst, dtype=float)
+    if A_obs.shape != A_inst.shape:
+        raise ValueError(f'A_obs shape {A_obs.shape} != A_inst shape '
+                         f'{A_inst.shape}')
+    if A_inst.size == 0:
+        return np.array([])
+    if A_inst[0] == 0:
+        raise ValueError('A_inst(0) is zero; cannot Stokes-deconvolve.')
+    threshold = damping_threshold * abs(A_inst[0])
+    A_corr = np.zeros_like(A_obs)
+    keep = np.abs(A_inst) >= threshold
+    A_corr[keep] = A_obs[keep] / A_inst[keep]
+    return A_corr
+
+
 def _caglioti_model(two_theta_deg, U, V, W):
     """Caglioti FWHM(2theta) given U, V, W. Vectorised."""
     theta = np.deg2rad(np.asarray(two_theta_deg) / 2.0)
