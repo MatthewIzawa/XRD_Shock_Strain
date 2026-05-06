@@ -130,7 +130,7 @@ def _caglioti_model(two_theta_deg, U, V, W):
 
 
 def _measure_fwhm_near(two_theta, intensity, target_tt,
-                        search_window_deg=0.5):
+                        search_window_deg=0.5, n_dense=5000):
     """Half-max-interpolation FWHM of the peak nearest target_tt
     within +/- search_window_deg. Returns (fwhm_deg, observed_tt) or
     (None, None) if no resolvable peak found.
@@ -157,7 +157,7 @@ def _measure_fwhm_near(two_theta, intensity, target_tt,
         cs = CubicSpline(local_tt, local_i_corr)
     except ValueError:
         return None, None
-    dense_tt = np.linspace(local_tt[0], local_tt[-1], 5000)
+    dense_tt = np.linspace(local_tt[0], local_tt[-1], n_dense)
     dense_i = np.maximum(cs(dense_tt), 0.0)
     peak_idx = int(np.argmax(dense_i))
     peak_val = dense_i[peak_idx]
@@ -227,18 +227,24 @@ def _caglioti_fit(two_theta, intensity, ref_two_theta,
         measured_fwhms.append(fwhm)
         measured_positions.append(obs_tt)
 
-    if len(measured_fwhms) < 3:
+    if len(measured_fwhms) < 4:
         raise ValueError(
-            f'Caglioti fit needs at least 3 resolvable peaks; '
-            f'got {len(measured_fwhms)}')
+            f'Caglioti fit needs at least 4 resolvable peaks for a '
+            f'meaningful 3-parameter fit; got {len(measured_fwhms)}')
 
     measured_fwhms = np.asarray(measured_fwhms)
     measured_positions = np.asarray(measured_positions)
 
-    # Initial guess: flat Caglioti (V=0; U and W small).
+    # Initial guess: U=1e-3 is appropriate for typical lab Bruker
+    # broadening; for synchrotron data with much narrower peaks,
+    # consider a data-driven starting value (e.g. var(fwhms)).
+    # V=0 is a sensible neutral; W is initialised from the median FWHM^2.
     p0 = [1e-3, 0.0, np.median(measured_fwhms)**2]
-    popt, pcov = curve_fit(_caglioti_model, measured_positions,
-                            measured_fwhms, p0=p0)
+    popt, pcov = curve_fit(
+        _caglioti_model, measured_positions, measured_fwhms,
+        p0=p0,
+        bounds=([0.0, -np.inf, 0.0], [np.inf, np.inf, np.inf]),
+    )
     U, V, W = float(popt[0]), float(popt[1]), float(popt[2])
     info = {
         'n_peaks': len(measured_fwhms),

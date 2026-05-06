@@ -127,7 +127,10 @@ class TestCagliotiFit:
             f'U: expected {SYNTH_U}, got {U}'
         assert abs(W - SYNTH_W) / SYNTH_W < 0.05, \
             f'W: expected {SYNTH_W}, got {W}'
-        # V is small and noise-prone; tolerance is wider.
+        # V is small (-1e-3) and noise-prone; absolute tolerance 5e-4
+        # corresponds to 50% relative tolerance — V is noise-dominated
+        # at this angular coverage, so a tighter tolerance would be
+        # flaky on the synthetic fixture.
         assert abs(V - SYNTH_V) < 5.0e-4, \
             f'V: expected {SYNTH_V}, got {V}'
         assert info['n_peaks'] == len(ref_tt)
@@ -139,3 +142,13 @@ class TestCagliotiFit:
         _, _, _, info = _caglioti_fit(tt, intensity, ref_tt)
         assert set(info) >= {'n_peaks', 'measured_fwhms',
                              'measured_positions', 'cov'}
+
+    def test_raises_when_too_few_peaks_resolvable(self):
+        """`_caglioti_fit` must raise ValueError when fewer than 4
+        peaks resolve in the search windows."""
+        data = np.loadtxt(SYNTH_LAB6)
+        tt, intensity = data[:, 0], data[:, 1]
+        # Pick reference positions far from any actual LaB6 peak.
+        ref_tt = np.array([22.5, 25.5, 28.5])  # 3 phantom positions
+        with pytest.raises(ValueError, match='at least 4'):
+            _caglioti_fit(tt, intensity, ref_tt)
