@@ -135,7 +135,15 @@ def fit_size_distribution(L, A_size):
 
     D_med_guess, sigma_guess = _moments_initial_guess(L_valid, A_valid)
 
-    # Lognormal fit.
+    # ss_tot depends only on A_valid; compute once so the normal block
+    # cannot NameError when the lognormal try-block raises before its
+    # internal binding (see Task 12 review).
+    ss_tot = np.sum((A_valid - np.mean(A_valid))**2)
+
+    # Lognormal fit. Narrow except: curve_fit's documented failure
+    # modes are RuntimeError (no convergence) and ValueError (bad
+    # inputs/bounds); programmer errors (NameError, AttributeError)
+    # should propagate.
     try:
         popt_ln, pcov_ln = curve_fit(
             lognormal_a_size, L_valid, A_valid,
@@ -144,7 +152,6 @@ def fit_size_distribution(L, A_size):
         D_median_fit, sigma_fit = float(popt_ln[0]), float(popt_ln[1])
         A_pred = lognormal_a_size(L_valid, D_median_fit, sigma_fit)
         ss_res = np.sum((A_valid - A_pred)**2)
-        ss_tot = np.sum((A_valid - np.mean(A_valid))**2)
         r2_ln = 1.0 - (ss_res / ss_tot) if ss_tot > 0 else np.nan
         D_mean_vol = D_median_fit * np.exp(sigma_fit**2 / 2)
         D_mean_area = D_median_fit * np.exp(sigma_fit**2 / 4)
@@ -156,14 +163,14 @@ def fit_size_distribution(L, A_size):
             'fit_r2': float(r2_ln),
             'cov': pcov_ln,
         }
-    except Exception:
+    except (RuntimeError, ValueError):
         lognormal_result = {
             'D_median': np.nan, 'sigma': np.nan,
             'D_mean_volume': np.nan, 'D_mean_area': np.nan,
             'fit_r2': np.nan, 'cov': None,
         }
 
-    # Normal fit.
+    # Normal fit. Same narrow-except rationale as above.
     try:
         popt_n, pcov_n = curve_fit(
             normal_a_size, L_valid, A_valid,
@@ -179,7 +186,7 @@ def fit_size_distribution(L, A_size):
             'fit_r2': float(r2_n),
             'cov': pcov_n,
         }
-    except Exception:
+    except (RuntimeError, ValueError):
         normal_result = {
             'D_mean': np.nan, 'sigma': np.nan,
             'fit_r2': np.nan, 'cov': None,
