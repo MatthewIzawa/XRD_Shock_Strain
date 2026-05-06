@@ -25,6 +25,7 @@ from scipy.stats import linregress
 from .conversions import two_theta_to_d, d_to_two_theta, two_theta_to_K
 from .noise import estimate_noise, estimate_zero_offset
 from .peak_detection import estimate_fwhm_simple
+from .size_distributions import fit_size_distribution
 
 
 def extract_peak_profile(two_theta, intensity, peak_tt, wavelength,
@@ -579,11 +580,7 @@ def guided_warren_averbach(two_theta, intensity, ref_peaks, wavelength,
         else:
             representative_strain = np.nan
 
-        # NEW v0.4.0: fit size distribution from A_size(L)
-        # Inline import mirrors the _stokes_deconvolve pattern above
-        # to keep size_distributions out of warren_averbach's import
-        # graph at module load (no circular risk today, but consistent).
-        from .size_distributions import fit_size_distribution
+        # v0.4.0: fit size distribution from A_size(L).
         size_dist = fit_size_distribution(L_vals, A_size)
 
         results_families.append({
