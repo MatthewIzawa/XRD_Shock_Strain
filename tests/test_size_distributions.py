@@ -88,3 +88,48 @@ class TestFitSizeDistribution:
         with pytest.raises(ValueError):
             fit_size_distribution(np.array([1.0, 2.0]),
                                    np.array([1.0]))  # mismatched len
+
+
+class TestWAFamilyHasSizeDistribution:
+    def test_each_family_has_size_distribution_key(self):
+        from pathlib import Path
+        from xrd_profile import XRDProfile, Phase
+        FIX = Path(__file__).parent / 'fixtures' / 'tirhert_subset.xy'
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        anorthite = Phase.from_cif(str(cif), name='anorthite')
+        data = np.loadtxt(FIX)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=0.826517)
+        result = profile.guided_warren_averbach(
+            phase=anorthite, n_sigma=3.0, tolerance_d=0.03)
+        for fam in result['families']:
+            assert 'size_distribution' in fam
+            sd = fam['size_distribution']
+            assert sd is None or set(sd) >= {'lognormal', 'normal',
+                                              'method', 'initial_guess',
+                                              'n_valid_L'}
+
+    def test_v030_keys_unchanged_when_size_dist_added(self):
+        """Ensure adding the new key did not perturb v0.3.0 keys."""
+        # Already covered by tests/test_backward_compat.py v0.3.0 tier;
+        # this is a belt-and-braces check at the family-key level.
+        from pathlib import Path
+        from xrd_profile import XRDProfile, Phase
+        FIX = Path(__file__).parent / 'fixtures' / 'tirhert_subset.xy'
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        anorthite = Phase.from_cif(str(cif), name='anorthite')
+        data = np.loadtxt(FIX)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=0.826517)
+        result = profile.guided_warren_averbach(
+            phase=anorthite, n_sigma=3.0, tolerance_d=0.03)
+        # Spot-check expected v0.3.0 family keys.
+        if result['families']:
+            f0 = result['families'][0]
+            for k in ('base_hkl', 'orders', 'd_spacings', 'fwhm_values',
+                      'A_size', 'L', 'mean_sq_strain',
+                      'crystallite_size', 'rms_strain', 'A_size_r2',
+                      'has_overlap'):
+                assert k in f0, f'v0.3.0 key {k!r} missing'

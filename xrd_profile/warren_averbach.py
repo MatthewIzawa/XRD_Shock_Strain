@@ -579,6 +579,13 @@ def guided_warren_averbach(two_theta, intensity, ref_peaks, wavelength,
         else:
             representative_strain = np.nan
 
+        # NEW v0.4.0: fit size distribution from A_size(L)
+        # Inline import mirrors the _stokes_deconvolve pattern above
+        # to keep size_distributions out of warren_averbach's import
+        # graph at module load (no circular risk today, but consistent).
+        from .size_distributions import fit_size_distribution
+        size_dist = fit_size_distribution(L_vals, A_size)
+
         results_families.append({
             'base_hkl': base_hkl,
             'orders': [fp['order'] for fp in family_profiles],
@@ -591,6 +598,7 @@ def guided_warren_averbach(two_theta, intensity, ref_peaks, wavelength,
             'rms_strain': representative_strain,
             'A_size_r2': r_as**2,
             'has_overlap': any_overlap,
+            'size_distribution': size_dist,   # NEW v0.4.0
         })
 
     # Aggregate — exclude obvious outliers
