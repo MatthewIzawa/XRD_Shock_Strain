@@ -492,7 +492,10 @@ class XRDProfile:
         wh, wa, pdf, scherrer : dict or None
             Per-method kwargs.
             e.g. wh={'n_sigma': 3.0, 'tolerance_d': 0.02}.
-        instrumental : reserved for Phase 2; raises NotImplementedError.
+        instrumental : InstrumentalStandard, InstrumentalProfile, or None
+            New in v0.4.0. Passed through to W-H, W-A, and Scherrer.
+            W-A rejects InstrumentalProfile (requires InstrumentalStandard
+            for Stokes deconvolution). PDF is unaffected.
 
         Returns
         -------
@@ -500,15 +503,10 @@ class XRDProfile:
           {'wh': {phase.name: result, ...},
            'wa': {phase.name: result, ...},
            'pdf': result,
-           'scherrer': result}
+           'scherrer': {phase.name: result, ...}}
         Without phases:
           {'wh': result, 'wa': result, 'pdf': result, 'scherrer': result}
         """
-        if instrumental is not None:
-            raise NotImplementedError(
-                'instrumental= is reserved for Phase 2 / v1.0; '
-                'see xrd_profile roadmap')
-
         if methods is None:
             methods = ['wh', 'wa', 'pdf', 'scherrer']
         wh_kwargs = wh or {}
@@ -525,7 +523,9 @@ class XRDProfile:
         if 'wh' in methods:
             if phases:
                 results['wh'] = {
-                    p.name: self.guided_williamson_hall(phase=p, **wh_kwargs)
+                    p.name: self.guided_williamson_hall(
+                        phase=p, instrumental=instrumental,
+                        **wh_kwargs)
                     for p in phases
                 }
             else:
@@ -537,7 +537,9 @@ class XRDProfile:
         if 'wa' in methods:
             if phases:
                 results['wa'] = {
-                    p.name: self.guided_warren_averbach(phase=p, **wa_kwargs)
+                    p.name: self.guided_warren_averbach(
+                        phase=p, instrumental=instrumental,
+                        **wa_kwargs)
                     for p in phases
                 }
             else:
@@ -548,7 +550,16 @@ class XRDProfile:
             results['pdf'] = {'r': r, 'G_r': G_r, 'Q_max': Q_max}
 
         if 'scherrer' in methods:
-            results['scherrer'] = self.scherrer(**scherrer_kwargs)
+            if phases:
+                results['scherrer'] = {
+                    p.name: self.scherrer(
+                        phase=p, instrumental=instrumental,
+                        **scherrer_kwargs)
+                    for p in phases
+                }
+            else:
+                results['scherrer'] = self.scherrer(
+                    instrumental=instrumental, **scherrer_kwargs)
 
         return results
 

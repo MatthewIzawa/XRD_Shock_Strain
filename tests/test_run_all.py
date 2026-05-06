@@ -76,8 +76,40 @@ class TestRunAllPerPhaseKeys:
 
 
 class TestRunAllInstrumental:
-    def test_instrumental_raises_not_implemented(self):
-        profile, an = _profile_and_anorthite()
-        with pytest.raises(NotImplementedError, match='Phase 2'):
-            profile.run_all(methods=['wh'], phases=[an],
-                             instrumental='anything')
+    @pytest.fixture(scope='class')
+    def anorthite_phase(self):
+        from xrd_profile import Phase
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        return Phase.from_cif(str(cif), name='anorthite')
+
+    def test_run_all_with_instrumental_profile_runs(
+            self, anorthite_phase):
+        from xrd_profile import (XRDProfile, InstrumentalProfile)
+        FIX = Path(__file__).parent / 'fixtures' / 'tirhert_subset.xy'
+        data = np.loadtxt(FIX)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=0.826517)
+        # Synchrotron-scale instrumental (lab-scale would over-correct).
+        inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
+                                    wavelength=0.826517)
+        # methods=['wh', 'scherrer'] only - W-A would reject Profile.
+        result = profile.run_all(
+            methods=['wh', 'scherrer'],
+            phases=anorthite_phase,
+            instrumental=inst)
+        assert 'wh' in result
+        assert 'scherrer' in result
+
+    def test_run_all_with_instrumental_profile_rejects_wa(
+            self, anorthite_phase):
+        from xrd_profile import (XRDProfile, InstrumentalProfile)
+        FIX = Path(__file__).parent / 'fixtures' / 'tirhert_subset.xy'
+        data = np.loadtxt(FIX)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=0.826517)
+        inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
+                                    wavelength=0.826517)
+        with pytest.raises(ValueError, match='Stokes'):
+            profile.run_all(methods=['wa'], phases=anorthite_phase,
+                             instrumental=inst)
