@@ -472,19 +472,33 @@ class TestScherrerWithPhaseAndInstrumental:
     def test_instrumental_correction_increases_apparent_size(
             self, anorthite_phase):
         """Removing instrumental broadening (FWHM_corr < FWHM_obs)
-        increases the apparent crystallite size from Scherrer."""
+        increases the apparent crystallite size from Scherrer.
+
+        Uses synchrotron-scale Caglioti parameters appropriate for the
+        I11 Tirhert fixture; lab-scale values would over-correct the
+        narrow peaks and produce all-NaN results, masking regressions
+        in the correction logic.
+        """
         data = np.loadtxt(TIRHERT)
         profile = XRDProfile(data[:, 0], data[:, 1],
                               wavelength=LAMBDA_I11)
-        inst = InstrumentalProfile(U=5e-3, V=-1e-3, W=5e-3,
+        # Synchrotron-scale: instrumental FWHM ~0.007 deg, well below
+        # the sample peaks' broadening on the Tirhert subset.
+        inst = InstrumentalProfile(U=5e-5, V=-2e-5, W=1e-4,
                                     wavelength=LAMBDA_I11)
         without = profile.scherrer(phase=anorthite_phase)
         with_inst = profile.scherrer(phase=anorthite_phase,
                                       instrumental=inst)
-        # Mean size should increase (or both NaN).
-        if not (np.isnan(without['mean_size'])
-                or np.isnan(with_inst['mean_size'])):
-            assert with_inst['mean_size'] >= without['mean_size']
+        assert np.isfinite(without['mean_size']), (
+            'uncorrected scherrer returned NaN — fixture or detection '
+            'broke')
+        assert np.isfinite(with_inst['mean_size']), (
+            'corrected scherrer returned NaN — synchrotron-scale '
+            'instrumental is over-correcting; check inst params')
+        assert with_inst['mean_size'] >= without['mean_size'], (
+            f'corrected size {with_inst["mean_size"]} < uncorrected '
+            f'{without["mean_size"]}; instrumental correction should '
+            f'increase apparent size')
 
     def test_modified_scherrer_with_phase_and_instrumental(
             self, anorthite_phase):
