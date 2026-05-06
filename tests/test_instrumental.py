@@ -160,7 +160,13 @@ from xrd_profile import Phase, InstrumentalStandard
 @pytest.fixture(scope='module')
 def lab6_phase():
     """Build a LaB6 Phase inline (Pm-3m, a=4.156825) without needing
-    a bundled CIF. Uses Phase.from_lattice_params."""
+    a bundled CIF.
+
+    LaB6 is the NIST SRM 660c crystallite-size standard. We build it
+    inline (Phase.from_lattice_params) rather than ship a CIF here
+    because pymatgen is the only dep needed and we don't want to add
+    a CIF to examples/cifs/ that isn't in the v0.3.0 manifest.
+    """
     return Phase.from_lattice_params(
         a=4.156825, b=4.156825, c=4.156825,
         alpha=90, beta=90, gamma=90,
@@ -226,6 +232,16 @@ class TestInstrumentalStandard:
         abs_A = np.abs(A[:5])
         diffs = np.diff(abs_A)
         assert np.sum(diffs > 0) <= 1  # allow one bump, no more.
+
+    def test_fourier_coefficients_is_cached(self, lab6_standard):
+        """Calling fourier_coefficients twice with the same arguments
+        must return the cached arrays (identity check)."""
+        L1, A1 = lab6_standard.fourier_coefficients(
+            peak_d=4.157, n_coeffs=20)
+        L2, A2 = lab6_standard.fourier_coefficients(
+            peak_d=4.157, n_coeffs=20)
+        assert L1 is L2
+        assert A1 is A2
 
 
 class TestInstrumentalProfileFromStandard:

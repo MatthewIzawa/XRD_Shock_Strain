@@ -133,6 +133,9 @@ def _caglioti_model(two_theta_deg, U, V, W):
     """Caglioti FWHM(2theta) given U, V, W. Vectorised."""
     theta = np.deg2rad(np.asarray(two_theta_deg) / 2.0)
     fwhm_sq = U * np.tan(theta)**2 + V * np.tan(theta) + W
+    # Internal-only floor at 1e-10 (vs 0.0 in fwhm_at): curve_fit needs
+    # a strictly positive sqrt argument to avoid a zero-derivative wall
+    # during optimisation. The public fwhm_at uses 0.0 + a UserWarning.
     return np.sqrt(np.maximum(fwhm_sq, 1e-10))
 
 
@@ -267,6 +270,11 @@ class InstrumentalStandard:
     standard, sufficient for both Caglioti FWHM correction and Stokes
     Fourier deconvolution.
 
+    This object is treated as immutable; mutating `two_theta`,
+    `intensity`, or `phase` after construction yields undefined behaviour
+    because the cached Caglioti fit and Fourier coefficients will not be
+    invalidated.
+
     Parameters
     ----------
     phase : xrd_profile.Phase
@@ -302,9 +310,10 @@ class InstrumentalStandard:
         """Convenience constructor: load Phase from CIF, attach the
         measured pattern."""
         from .phases import Phase
-        phase = Phase.from_cif(cif, name=name or Path(cif).stem)
+        resolved_name = name or Path(cif).stem
+        phase = Phase.from_cif(cif, name=resolved_name)
         return cls(phase=phase, two_theta=two_theta, intensity=intensity,
-                   wavelength=wavelength, name=name)
+                   wavelength=wavelength, name=resolved_name)
 
     def caglioti_fit(self) -> 'InstrumentalProfile':
         """Fit Caglioti U, V, W to the standard's measured FWHMs at
@@ -325,12 +334,25 @@ class InstrumentalStandard:
         return prof
 
     def fourier_coefficients(self, peak_d: float,
-                              n_coeffs: int = 20):
+                              n_coeffs: int = 20,
+                              width_fwhm: float = 6.0):
         """Return (L, A_inst_L) Fourier coefficients of the standard's
         peak nearest `peak_d` (angstroms). `L` is column length in
         angstroms; `A_inst_L` is the (real) Fourier coefficient.
-        Cached per peak_d."""
-        cache_key = (round(float(peak_d), 6), int(n_coeffs))
+        Cached per (peak_d, n_coeffs, width_fwhm).
+
+        Parameters
+        ----------
+        peak_d : float
+            d-spacing (angstroms) of the target reflection.
+        n_coeffs : int, default 20
+            Number of Fourier coefficients to return.
+        width_fwhm : float, default 6.0
+            Extraction-window width in units of FWHM (passed to
+            warren_averbach.extract_peak_profile).
+        """
+        cache_key = (round(float(peak_d), 6), int(n_coeffs),
+                     float(width_fwhm))
         if cache_key in self._fourier_cache:
             return self._fourier_cache[cache_key]
 
@@ -344,7 +366,7 @@ class InstrumentalStandard:
                 f'wavelength {self.wavelength}')
         prof = extract_peak_profile(
             self.two_theta, self.intensity, target_tt, self.wavelength,
-            width_fwhm=6.0)
+            width_fwhm=width_fwhm)
         L, A_L, _conv = fourier_coefficients(
             prof['s'], prof['profile'], prof['s0'], n_coeffs=n_coeffs)
         self._fourier_cache[cache_key] = (L, A_L)
