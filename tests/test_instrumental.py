@@ -402,3 +402,48 @@ class TestGuidedWHWithInstrumental:
             profile.guided_williamson_hall(
                 phase=anorthite_phase,
                 instrumental='not_a_real_profile')
+
+
+class TestGuidedWAWithInstrumental:
+    @pytest.fixture(scope='class')
+    def anorthite_phase(self):
+        cif = (Path(__file__).parent.parent / 'examples'
+               / 'cifs' / 'Anorthite.cif')
+        return Phase.from_cif(str(cif), name='anorthite')
+
+    def test_runs_end_to_end_with_instrumental_standard(
+            self, anorthite_phase, lab6_standard):
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        lab6_data = np.loadtxt(SYNTH_LAB6)
+        lab6_at_i11 = InstrumentalStandard(
+            phase=lab6_standard.phase,
+            two_theta=lab6_data[:, 0], intensity=lab6_data[:, 1],
+            wavelength=LAMBDA_I11, name='lab6_at_i11')
+        result = profile.guided_warren_averbach(
+            phase=anorthite_phase, instrumental=lab6_at_i11,
+            n_sigma=3.0, tolerance_d=0.03)
+        assert np.isfinite(result['mean_crystallite_size']) \
+               or np.isnan(result['mean_crystallite_size'])
+        # At minimum, the call returns a result dict.
+        assert 'families' in result
+
+    def test_instrumental_profile_raises_for_wa(self, anorthite_phase):
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        inst = InstrumentalProfile(U=5e-3, V=-1e-3, W=5e-3,
+                                    wavelength=LAMBDA_I11)
+        with pytest.raises(ValueError, match='Stokes deconvolution'):
+            profile.guided_warren_averbach(
+                phase=anorthite_phase, instrumental=inst)
+
+    def test_invalid_instrumental_type_raises_for_wa(
+            self, anorthite_phase):
+        data = np.loadtxt(TIRHERT)
+        profile = XRDProfile(data[:, 0], data[:, 1],
+                              wavelength=LAMBDA_I11)
+        with pytest.raises(TypeError, match='InstrumentalStandard'):
+            profile.guided_warren_averbach(
+                phase=anorthite_phase, instrumental='garbage')

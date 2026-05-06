@@ -177,8 +177,13 @@ class XRDProfile:
             New in v0.3.0. If provided, ref_peaks is computed from
             phase.get_ref_peaks(wavelength, two_theta_range=data_range).
             Mutually exclusive with ref_peaks=.
-        instrumental : reserved for Phase 2 / v1.0
-            Pass None (default). Any other value raises NotImplementedError.
+        instrumental : InstrumentalStandard or None
+            New in v0.4.0. If provided, Stokes Fourier deconvolution is
+            applied per family using the standard's measured peak profile.
+            InstrumentalProfile is rejected with a ValueError because
+            Caglioti FWHM subtraction is unprincipled for the higher-order
+            Fourier coefficients W-A consumes; a measured standard pattern
+            (InstrumentalStandard) is required.
         tolerance_d, n_sigma, min_fwhm_steps, correct_offset, n_coeffs,
         width_fwhm, require_clean : see guided_warren_averbach function.
 
@@ -193,10 +198,24 @@ class XRDProfile:
                         float(self.two_theta.max()))
             ref_peaks = phase.get_ref_peaks(self.wavelength,
                                              two_theta_range=tt_range)
-        if instrumental is not None:
-            raise NotImplementedError(
-                'instrumental= is reserved for Phase 2 / v1.0; '
-                'see xrd_profile roadmap')
+        from .instrumental import (InstrumentalStandard,
+                                    InstrumentalProfile)
+        if instrumental is None:
+            std = None
+        elif isinstance(instrumental, InstrumentalStandard):
+            std = instrumental
+        elif isinstance(instrumental, InstrumentalProfile):
+            raise ValueError(
+                'Warren-Averbach Stokes deconvolution requires the '
+                'measured standard pattern; pass an InstrumentalStandard, '
+                'or call without instrumental= for uncorrected W-A. '
+                'Caglioti FWHM subtraction is mathematically equivalent '
+                'to FWHM-only correction and is unprincipled for the '
+                'higher-order Fourier coefficients W-A consumes.')
+        else:
+            raise TypeError(
+                f'instrumental= must be InstrumentalStandard or None; '
+                f'got {type(instrumental).__name__}')
         if ref_peaks is None:
             raise ValueError('must pass either ref_peaks or phase')
 
@@ -206,7 +225,8 @@ class XRDProfile:
             tolerance_d=tolerance_d, n_sigma=n_sigma,
             min_fwhm_steps=min_fwhm_steps, correct_offset=correct_offset,
             n_coeffs=n_coeffs, width_fwhm=width_fwhm,
-            require_clean=require_clean
+            require_clean=require_clean,
+            inst_standard=std,
         )
 
     def scherrer(self, K=None, shape=None, height_threshold=0.05):

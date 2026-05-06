@@ -300,7 +300,8 @@ def guided_warren_averbach(two_theta, intensity, ref_peaks, wavelength,
                            tolerance_d=0.03, n_sigma=3.0, min_fwhm_steps=3,
                            correct_offset=True, n_coeffs=20,
                            width_fwhm=6.0, min_ref_intensity=1.0,
-                           require_clean=False):
+                           require_clean=False,
+                           inst_standard=None):
     """
     Reference-guided Warren-Averbach analysis using harmonic peak families.
 
@@ -474,6 +475,13 @@ def guided_warren_averbach(two_theta, intensity, ref_peaks, wavelength,
 
             if not converged:
                 continue
+
+            if inst_standard is not None:
+                from .instrumental import _stokes_deconvolve
+                _, A_inst_L = inst_standard.fourier_coefficients(
+                    peak_d=d_ref, n_coeffs=n_coeffs)
+                A_L = _stokes_deconvolve(A_L, A_inst_L,
+                                          damping_threshold=0.05)
 
             d_obs = two_theta_to_d(peak_tt_obs, wavelength)
             family_profiles.append({
