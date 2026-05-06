@@ -299,3 +299,8 @@ class TestStokesDeconvolve:
         A_obs = np.full_like(L, 0.5)
         with pytest.raises(ValueError, match='A_inst.0. is zero'):
             _stokes_deconvolve(A_obs, A_inst)
+
+    def test_shape_mismatch_raises(self):
+        """Mismatched A_obs / A_inst shapes must raise ValueError."""
+        with pytest.raises(ValueError, match='shape'):
+            _stokes_deconvolve(np.ones(5), np.ones(6))

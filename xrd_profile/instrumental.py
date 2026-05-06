@@ -159,6 +159,8 @@ def _stokes_deconvolve(A_obs, A_inst, damping_threshold: float = 0.05):
         return np.array([])
     if A_inst[0] == 0:
         raise ValueError('A_inst(0) is zero; cannot Stokes-deconvolve.')
+    # 5% floor is the conventional Stokes (1948) damping heuristic;
+    # see Warren & Averbach (1952) J. Appl. Phys. 23, 497 for usage.
     threshold = damping_threshold * abs(A_inst[0])
     A_corr = np.zeros_like(A_obs)
     keep = np.abs(A_inst) >= threshold
