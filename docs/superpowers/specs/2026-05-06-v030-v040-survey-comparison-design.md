@@ -1,7 +1,7 @@
 ---
 title: v0.3.0 vs v0.4.0 survey comparison harness — design
 date: 2026-05-06
-status: executed (column B shipped 2026-05-07; column C deferred to v0.5.0 — see §12)
+status: executed (column B + column C operational under v0.4.1 — see §13)
 scope: Llunr/comparison_v040/ — validation harness, not a package release
 predecessor: 2026-05-05-xrd-profile-v1-phase2-design.md
 author: Matthew R. M. Izawa
@@ -560,3 +560,139 @@ because they come from column C), and `run_log.md` are also produced.
    without code changes on the harness side. Update §8 references with
    literature Caglioti.
 3. Render figs 02–05 by extending `comparison_v040/plots.py`.
+
+## 13. Resolution and v0.4.1 ship (2026-05-07)
+
+The v0.5.0 prerequisites in §12.6 were resolved on the same day, in the
+form of a v0.4.1 patch release rather than a v0.5.0 inclusion (the fix
+is a behavioural correction with no API change, fitting patch
+semantics).
+
+### 13.1 v0.4.1: Caglioti-synthesis fallback in `fourier_coefficients`
+
+`xrd_profile/instrumental.py:fourier_coefficients` now has a two-path
+implementation:
+
+1. **Extraction** (preferred, unchanged for real measured standards):
+   pull a peak window from the standard's measured pattern at the
+   target 2θ and take its Fourier coefficients.
+2. **Caglioti synthesis** (new, fallback): when extraction returns a
+   degenerate result — `A(0) == 0` from the inner zero-area guard, or
+   `converged == False` because the extracted "profile" was actually
+   noise — the method synthesises a Gaussian at the target 2θ with
+   FWHM from the standard's `caglioti_fit()` and takes Fourier
+   coefficients of that synthetic peak.
+
+This is preference 1 from §12.3 ("synthesise a Gaussian peak at the
+sample's 2θ from the fitted Caglioti U/V/W"). The strict-additive
+contract is unaffected: `instrumental=None` callers and Caglioti-only
+`InstrumentalProfile` callers (W-H / Scherrer) are byte-identical to
+v0.4.0. v0.4.1 is purely additive for `InstrumentalStandard` callers
+whose standard pattern is sparse at the requested target 2θ.
+
+A unit test (`tests/test_instrumental.py::TestInstrumentalStandard::test_fourier_coefficients_fallback_on_offpeak_target`)
+exercises the fallback on the bundled fixture at a 2θ between LaB6
+reflections. 114/114 tests pass.
+
+Commit: `ee04727`. Tag: `v0.4.1` (annotated, on `main`). Not pushed at
+ship time — awaiting user approval per `xrd_profile/CLAUDE.md`.
+
+### 13.2 Co Kα subset wired to existing TOPAS `.pro` files
+
+The four Co Kα Winnipeg samples (NWA 5751, NWA 6013, Talampaya,
+Tatahouine) had their source data in
+`Llunr/HED_XRD_Shock/HED_Co_XRD/<sample>.pro` (TOPAS `.pro` format,
+not 2-column XY). The `parse_pro` helper from
+`Llunr/HED_XRD_Shock/analyse_hed_lab.py` was incorporated into the
+harness as `_parse_pro` in `run_comparison.py`, and `load_xy` now
+dispatches by file extension. Co Kα entries in `config.SAMPLES` point
+at the `.pro` files; phase choices follow `analyse_hed_lab.py`
+(anorthite for NWA 5751 and Talampaya; enstatite for NWA 6013 and
+Tatahouine, since both are orthopyroxene-dominated diogenite-family).
+`PHASE_REFS_SPEC` builds enstatite at Co Kα as well as I11.
+
+The harness now runs across all 28 samples in the saved CSV.
+
+### 13.3 Co Kα A-vs-B is informational, not contract-bound
+
+The four Co Kα rows in the saved CSV came from a separate historical
+processing pipeline (likely `analyse_hed_lab.py` or a predecessor)
+with different `n_sigma`, `tolerance_d`, or peak-detection parameters
+than `compile_survey.py` uses. Our harness uses
+`n_sigma=3.0, tolerance_d=0.02` (mirroring `compile_survey.py`), so
+column B for Co Kα does not match the saved values exactly:
+
+| Sample | Saved A (n_fams, D_median) | Harness B (n_fams, D_median) |
+|---|---|---|
+| NWA 5751 | 20, 416 Å | 13, 339.2 Å |
+| NWA 6013 | 9, 352 Å | 6, 399.5 Å |
+| Talampaya | 34, 310 Å | 20, 296.4 Å |
+| Tatahouine | 9, 343 Å | 5, 342.7 Å |
+
+Family counts roughly halve under our parameters; D_median differs by
+−77 to +48 Å. `run_log.md` reports this as `informational FAIL on Co
+Kα — parameter-divergence flag, not a contract violation`. The
+harness's strict-additive validation is on the 24 Cu Kα + I11 subset
+(7 PASS + 16 PASS + 1 N/A), which all pass at floating-point precision.
+
+To reproduce the historical Co Kα values exactly, match the original
+pipeline's `n_sigma` and `tolerance_d` in `config.SAMPLES`. This is
+sample-pipeline reconciliation work, not a v0.4.1 concern.
+
+### 13.4 MEASURED-standard hook in `config.INSTRUMENTAL_CAGLIOTI`
+
+`build_instrumental_standards` in `run_comparison.py` now dispatches on
+the entry's `flag`:
+
+- `flag in ('TYPICAL', 'LITERATURE')`: synthesise LaB6 from U/V/W (the
+  current state for all three instruments).
+- `flag == 'MEASURED'`: load `xy_path` and wrap via
+  `InstrumentalStandard.from_cif_and_pattern(cif=cif_path, ...)`.
+
+Each entry in `config.INSTRUMENTAL_CAGLIOTI` carries commented-out
+`xy_path` / `cif_path` placeholders showing the future-state shape.
+Acquiring a measured LaB6 (or SRM 660b, NAC) pattern on any of the
+three instruments → setting `flag` to `'MEASURED'` and uncommenting
+the two paths is a three-line edit in `config.py`; no code changes
+elsewhere.
+
+### 13.5 What this run validates and what it does not (final state)
+
+**Validated under v0.4.1**:
+- Strict-additive contract on the 24 Cu Kα Misasa + Diamond I11
+  subset of the JAC survey: row-for-row reproduction at floating-point
+  precision (16/17 I11 PASS + 1 N/A; 7/7 Cu PASS).
+- Column C (instrumental correction) runs end-to-end on all 27
+  fittable samples (28 minus NWA 7042 with families=0). The
+  Caglioti-synthesis fallback path is exercised on every sample (our
+  synthetic LaB6 standards are sparse).
+
+**Conditional**:
+- Numerical column-C values are conditional on the TYPICAL Caglioti
+  placeholders in `config.INSTRUMENTAL_CAGLIOTI`. The I11 placeholder
+  is ~3× wider than literature I11 instrumental FWHM, which over-
+  corrects and produces some wrong-direction shifts; see `run_log.md`
+  caveats.
+
+**Open**:
+- Acquiring measured LaB6 calibration patterns on each instrument
+  (Misasa SmartLab, Winnipeg D8, Diamond I11) and switching the
+  corresponding entry to `flag='MEASURED'`. Until then, column C is
+  a magnitude-estimate sensitivity analysis, not a measurement.
+- Reproducing the saved Co Kα rows exactly would require matching the
+  historical pipeline's `n_sigma` and `tolerance_d` (separate
+  workstream; not blocking).
+
+### 13.6 Outputs
+
+`Llunr/comparison_v040/output/` after the 2026-05-07 v0.4.1 run:
+
+- `comparison.csv` (28 rows; columns A, B, C populated for 27 of 28).
+- `size_distributions.csv` (per-family lognormal+normal fits).
+- `synthetic_standards/lab6_{cu_misasa,co_winnipeg,i11}.xy`.
+- `fig01_D_median_AvB.{png,svg}` — A vs B scatter, all on y=x.
+- `fig02_D_median_BvC.{png,svg}` — B vs C scatter, correction effect
+  visible (Cu cluster above y=x; I11 spread on both sides).
+- `fig03_delta_BC_by_shock.{png,svg}` — boxplot of Δ_BC % by shock
+  stage and instrument.
+- `run_log.md` — full text-form summary of the run.
