@@ -14,7 +14,7 @@ methods, and improved Fourier coefficient extraction.
 See README.md for full attribution and citation information.
 """
 
-__version__ = '0.4.0'
+__version__ = '0.4.1'
 
 from .conversions import (two_theta_to_d, d_to_two_theta, two_theta_to_Q,
                           two_theta_to_K, fwhm_to_deltaK)

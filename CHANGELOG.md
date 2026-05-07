@@ -4,6 +4,41 @@ All notable changes to xrd_profile are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/), versioning
 follows [SemVer](https://semver.org/).
 
+## [0.4.1] — 2026-05-07
+
+### Fixed
+- `InstrumentalStandard.fourier_coefficients(peak_d=...)` now falls
+  back to Caglioti-derived Gaussian synthesis when the direct-extraction
+  path returns a degenerate result. Two failure modes are handled:
+  (a) zero-area extracted profile (target 2θ falls on a region with
+  no measurable signal) where the W-A `fourier_coefficients` zero-area
+  guard returns A(L) all-zero; (b) noise-driven extraction where
+  background subtraction leaves only baseline noise, A(0) is
+  artificially normalised to 1, and A(L>0) oscillates (detected via
+  the `converged` flag the inner `fourier_coefficients` already
+  returns). On detection of either, the method synthesises a Gaussian
+  at the target 2θ with FWHM from the standard's Caglioti fit and
+  takes Fourier coefficients of that. This unblocks W-A Stokes
+  deconvolution for synthetic standards (sparse Gaussian peaks on
+  near-zero baseline, e.g., generated from literature U/V/W) without
+  affecting real measured-LaB6 callers, where the extraction path
+  continues to be preferred.
+
+### Added
+- `InstrumentalStandard._fourier_via_extraction` and
+  `_fourier_via_caglioti` private helpers carry the two paths.
+  Public `fourier_coefficients` is unchanged in signature.
+- `tests/test_instrumental.py::TestInstrumentalStandard::test_fourier_coefficients_fallback_on_offpeak_target`
+  exercises the Caglioti-synthesis fallback at a 2θ between LaB6
+  reflections of the bundled fixture.
+
+### Notes
+- v0.4.0's strict-additive contract is unaffected: `instrumental=None`
+  callers and Caglioti-only `instrumental=InstrumentalProfile(...)`
+  callers (W-H / Scherrer) are byte-identical to v0.4.0. v0.4.1 is a
+  pure addition for `instrumental=InstrumentalStandard(...)` callers
+  whose standard pattern is sparse at the requested target 2θ.
+
 ## [0.4.0] — 2026-05-06
 
 ### Added

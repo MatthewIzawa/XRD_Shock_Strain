@@ -376,9 +376,31 @@ class InstrumentalStandard:
                               n_coeffs: int = 20,
                               width_fwhm: float = 6.0):
         """Return (L, A_inst_L) Fourier coefficients of the standard's
-        peak nearest `peak_d` (angstroms). `L` is column length in
-        angstroms; `A_inst_L` is the (real) Fourier coefficient.
-        Cached per (peak_d, n_coeffs, width_fwhm).
+        peak shape at the 2-theta corresponding to `peak_d`. `L` is
+        column length in angstroms; `A_inst_L` is the (real) Fourier
+        cosine coefficient, normalised so A(L=0) = 1. Cached per
+        (peak_d, n_coeffs, width_fwhm).
+
+        Two paths:
+
+        1. **Extraction** (preferred): pull a peak window from the
+           standard's measured pattern at the target 2-theta and take
+           its Fourier coefficients. Captures real-instrument peak-shape
+           detail when the standard has measurable signal at target_tt.
+
+        2. **Caglioti synthesis** (fallback): if extraction returns a
+           degenerate profile (zero area; A(0) == 0), synthesise a
+           Gaussian peak at target_tt with FWHM given by the standard's
+           Caglioti fit, then take Fourier coefficients of the synthetic
+           peak. Required when target_tt falls on a near-zero baseline
+           of a sparse standard pattern — the typical mode for synthetic
+           LaB6 patterns generated from literature U/V/W (where peaks
+           are discrete Gaussians and most of the 2-theta range is
+           empty).
+
+        New in v0.4.1: the fallback path. Prior v0.4.0 always took the
+        extraction path and raised `A_inst(0) is zero` when the standard
+        was sparse at target_tt.
 
         Parameters
         ----------
@@ -387,8 +409,9 @@ class InstrumentalStandard:
         n_coeffs : int, default 20
             Number of Fourier coefficients to return.
         width_fwhm : float, default 6.0
-            Extraction-window width in units of FWHM (passed to
-            warren_averbach.extract_peak_profile).
+            Window width in units of FWHM. Used by the extraction path
+            (passed to warren_averbach.extract_peak_profile) and the
+            synthesis path (s-grid spans width_fwhm * fwhm_s around s0).
         """
         cache_key = (round(float(peak_d), 6), int(n_coeffs),
                      float(width_fwhm))
@@ -396,17 +419,76 @@ class InstrumentalStandard:
             return self._fourier_cache[cache_key]
 
         from .conversions import d_to_two_theta
-        from .warren_averbach import (extract_peak_profile,
-                                       fourier_coefficients)
         target_tt = d_to_two_theta(peak_d, self.wavelength)
         if np.isnan(target_tt):
             raise ValueError(
                 f'peak_d {peak_d} corresponds to no valid 2-theta at '
                 f'wavelength {self.wavelength}')
+
+        L, A_L, converged = self._fourier_via_extraction(
+            target_tt, n_coeffs, width_fwhm)
+        # Fall back to synthesis when extraction yields a degenerate
+        # result. Two failure modes are seen in practice:
+        # (a) zero-area profile (target_tt fell on a region with no
+        #     measurable signal): A_L[0] == 0 from the W-A
+        #     fourier_coefficients zero-area early return.
+        # (b) noise-driven profile (median-filter background subtraction
+        #     leaves only baseline noise): A_L[0] = 1 after
+        #     normalisation but A_L[1:] oscillates because the
+        #     "peak" was actually noise. fourier_coefficients reports
+        #     this via converged=False.
+        if A_L.size == 0 or A_L[0] == 0 or not converged:
+            L, A_L = self._fourier_via_caglioti(
+                target_tt, n_coeffs, width_fwhm)
+        self._fourier_cache[cache_key] = (L, A_L)
+        return L, A_L
+
+    def _fourier_via_extraction(self, target_tt: float,
+                                 n_coeffs: int, width_fwhm: float):
+        """Path 1: extract a peak window from the standard's measured
+        pattern at target_tt, take its Fourier coefficients. Returns
+        (L, A_L, converged); A_L[0] == 0 or converged == False signals
+        a degenerate extraction (caller falls back to synthesis)."""
+        from .warren_averbach import (extract_peak_profile,
+                                       fourier_coefficients)
         prof = extract_peak_profile(
             self.two_theta, self.intensity, target_tt, self.wavelength,
             width_fwhm=width_fwhm)
-        L, A_L, _conv = fourier_coefficients(
+        L, A_L, converged = fourier_coefficients(
             prof['s'], prof['profile'], prof['s0'], n_coeffs=n_coeffs)
-        self._fourier_cache[cache_key] = (L, A_L)
+        return L, A_L, converged
+
+    def _fourier_via_caglioti(self, target_tt: float,
+                                n_coeffs: int, width_fwhm: float):
+        """Path 2 (v0.4.1 fallback): synthesise a Gaussian at target_tt
+        with FWHM from the standard's Caglioti fit, then take Fourier
+        coefficients of the synthetic peak.
+
+        Conversion of FWHM from 2-theta (degrees) to s = 2 sin(theta)/lambda
+        (inverse angstroms): around the peak centre,
+            ds/d(2-theta)_radians = cos(theta) / wavelength,
+        so
+            FWHM_s = FWHM_2theta * cos(theta) * (pi/180) / wavelength.
+        """
+        from .warren_averbach import fourier_coefficients
+        cag = self.caglioti_fit()
+        fwhm_2theta = float(cag.fwhm_at(target_tt))  # degrees
+        theta_rad = np.radians(target_tt / 2.0)
+        s0 = (2.0 * np.sin(theta_rad)) / self.wavelength
+        fwhm_s = (fwhm_2theta * np.cos(theta_rad)
+                  * np.pi / (180.0 * self.wavelength))
+        if fwhm_s <= 0:
+            # Caglioti fit returned non-positive FWHM at this 2-theta —
+            # cannot synthesise a meaningful Gaussian.
+            return np.zeros(n_coeffs), np.zeros(n_coeffs)
+        sigma_s = fwhm_s / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+        half_window = width_fwhm * fwhm_s / 2.0
+        n_pts = max(401, n_coeffs * 8)
+        s = np.linspace(s0 - half_window, s0 + half_window, n_pts)
+        profile = np.exp(-((s - s0) ** 2) / (2.0 * sigma_s ** 2))
+        area = np.trapezoid(profile, s)
+        if area > 0:
+            profile = profile / area
+        L, A_L, _ = fourier_coefficients(
+            s, profile, s0, n_coeffs=n_coeffs)
         return L, A_L

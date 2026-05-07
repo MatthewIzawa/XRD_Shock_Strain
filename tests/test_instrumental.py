@@ -243,6 +243,35 @@ class TestInstrumentalStandard:
         assert L1 is L2
         assert A1 is A2
 
+    def test_fourier_coefficients_fallback_on_offpeak_target(
+            self, lab6_standard):
+        """v0.4.1: when peak_d maps to an off-peak 2-theta on a sparse
+        standard pattern (Gaussian peaks on near-zero baseline), the
+        extraction path returns A(0)=0 and the method falls back to
+        Caglioti-derived Gaussian synthesis at target_tt. The synthesised
+        A(L) is normalised to A(0)=1 and decays smoothly toward zero.
+
+        Concretely: d=3.55 angstroms maps to ~25.4 deg at Cu K-alpha,
+        between LaB6 (100) at 21.4 deg and (110) at 30.4 deg — far from
+        any peak in the synthetic LaB6 fixture. v0.4.0 raised
+        `A_inst(0) is zero; cannot Stokes-deconvolve` here."""
+        L, A = lab6_standard.fourier_coefficients(
+            peak_d=3.55, n_coeffs=20)
+        assert len(L) == 20
+        assert len(A) == 20
+        # Synthesis path produces a normalised Gaussian Fourier
+        # transform: A(0) = 1 by construction.
+        assert A[0] == pytest.approx(1.0, abs=1e-6)
+        # Gaussian Fourier transform decays monotonically (modulo
+        # tiny numerical wiggle); allow at most one upward step.
+        abs_A = np.abs(A[:10])
+        diffs = np.diff(abs_A)
+        assert np.sum(diffs > 1e-3) <= 1
+        # Width-fwhm=6 (default) gives delta_s = 6 fwhm_s. The Fourier
+        # transform of a Gaussian sigma_s = fwhm_s / 2.355 evaluated at
+        # L_max ~= 1.58/fwhm_s drops to ~1e-4 — well below 0.1.
+        assert abs(A[-1]) < 0.1
+
 
 class TestInstrumentalProfileFromStandard:
     def test_from_standard_delegates_to_caglioti_fit(
