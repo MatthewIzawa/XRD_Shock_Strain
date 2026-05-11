@@ -2,7 +2,7 @@
 title: Reference-phase sensitivity test for W-A (JAC revision Table S1) — design
 date: 2026-05-11
 status: design
-scope: Llunr/Paper1_JAC/ — JAC revision supplementary table and §4.1 prose
+scope: Llunr/refphase_sensitivity/ (analysis) → JAC Table S1 + §4.1 prose (paste-into-docx)
 related: addresses Kleppe reviewer comment 4
 author: Matthew R. M. Izawa
 ---
@@ -48,7 +48,9 @@ reference-phase choice.
 - One supplementary table comparing D_med (Å) and family count for
   each (sample, reference) pair.
 - One paragraph (~3 sentences) of §4.1 prose, contingent on outcome.
-- One reproducible analysis script in `Paper1_JAC/`.
+- One reproducible analysis script in a new standalone
+  `Llunr/refphase_sensitivity/` directory (parallel to
+  `Llunr/comparison_v040/`), keeping `Paper1_JAC/` untouched.
 
 **Out of scope (deferred or rejected):**
 
@@ -92,11 +94,15 @@ paper-specific one-off; the package already exposes `Phase.from_cif`
 and `XRDProfile.run_all`, which are sufficient. Adding sensitivity
 machinery to v0.4.1 also pollutes the release boundary.
 
-**Alt C (chosen) — standalone script in `Paper1_JAC/`.** Single
-self-contained `tableS1_reference_sensitivity.py` consuming the
-xrd_profile public API read-only, writing only to a new
-`Paper1_JAC/draft_tables/` directory. No package change. No
-pipeline contamination.
+**Alt C (chosen) — standalone `Llunr/refphase_sensitivity/`
+directory.** Single self-contained
+`tableS1_reference_sensitivity.py` consuming the xrd_profile
+public API read-only, writing only into its own directory.
+Parallel to the existing `Llunr/comparison_v040/` pattern. No
+package change. No `Paper1_JAC/` contamination. Final deliverables
+(Table S1 markdown and §4.1 prose) reach the manuscript through
+paste-into-docx by the author, never touching `Paper1_JAC/` files
+directly.
 
 ### 5.2 Per-sample logic
 
@@ -119,10 +125,11 @@ For each (sample, reference) of the six combinations:
 
 ### 6.1 CSV (full record)
 
-`Paper1_JAC/draft_tables/tableS1_reference_sensitivity.csv` — six
-rows (3 samples × 2 references), columns: `sample`, `shock`,
+`Llunr/refphase_sensitivity/tableS1_reference_sensitivity.csv` —
+six rows (3 samples × 2 references), columns: `sample`, `shock`,
 `reference_phase`, `cif_path`, `n_peaks_detected`, `n_families`,
-`D_med_A`, `notes`.
+`D_med_A`, `notes`. A per-peak diagnostic file is written
+alongside (see §7).
 
 ### 6.2 Supplementary table (published form)
 
@@ -171,9 +178,17 @@ Two templates, one chosen after the script runs.
   albite-vs-anorthite peak-position offsets for this sample
   composition, the albite run will detect *fewer peaks*, and the
   family count drop will partly reflect "missed peaks" rather than
-  "different reference." Mitigation: the CSV captures
-  `n_peaks_detected` separately from `n_families`; if they diverge
-  qualitatively, the prose should note the distinction.
+  "different reference." Mitigation (per the user, accepted): the
+  implementation will export a per-peak diagnostic table for each
+  (sample, reference) pair — peak position, intensity, family
+  assignment, and the d-spacing offset between the detected peak
+  and the nearest reference-predicted peak. The implementer
+  reviews these diagnostics to confirm detected peaks correspond
+  to actual sample peak maxima under each reference, and flags
+  any wrongly-attributed peaks in the §4.1 prose. The CSV also
+  captures `n_peaks_detected` separately from `n_families`; if
+  they diverge qualitatively, the prose distinguishes the two
+  effects.
 
 - **Wrong API entry point.** v0.4.1 exposes several W-A entry
   points (`run_all`, `guided_warren_averbach`, etc.) Implementer
@@ -195,21 +210,28 @@ Two templates, one chosen after the script runs.
   and presented for paste-into-docx.
 - All edits respect the JAC freeze: no changes to the 29-sample
   survey, no changes to existing figures, no changes to
-  `xrd_profile` source.
-- New script committed (paper paths are not in any git repo, so
-  "committed" here means saved to disk and reproducible).
+  `xrd_profile` source, no new files added to `Paper1_JAC/`.
+- Per-peak diagnostic file written alongside the main CSV;
+  implementer reviews it before drafting prose.
+- New script saved to `Llunr/refphase_sensitivity/` (outside any
+  git repo, so "committed" here means saved to disk and
+  reproducible from the spec).
 
 ## 9. Deliverables
 
-1. `Paper1_JAC/tableS1_reference_sensitivity.py` — single
-   self-contained analysis script (~150 lines).
-2. `Paper1_JAC/draft_tables/` — new directory, parallel to
-   `draft_figures/`. Created if absent.
-3. `Paper1_JAC/draft_tables/tableS1_reference_sensitivity.csv` —
-   script output (six rows).
-4. Markdown table text (Table S1) — printed to stdout and
+1. `Llunr/refphase_sensitivity/` — new standalone directory,
+   parallel to `Llunr/comparison_v040/`. Created if absent.
+2. `Llunr/refphase_sensitivity/tableS1_reference_sensitivity.py` —
+   single self-contained analysis script (~150 lines).
+3. `Llunr/refphase_sensitivity/tableS1_reference_sensitivity.csv`
+   — script output (six rows; main results table).
+4. `Llunr/refphase_sensitivity/per_peak_diagnostics.csv` —
+   diagnostic file (per-peak position, intensity, family
+   assignment, d-spacing offset from reference prediction) used
+   for the §7 mitigation review.
+5. Markdown table text (Table S1) — printed to stdout and
    presented in chat for paste into the .docx supplementary.
-5. §4.1 prose text — one of two templates filled in with the
+6. §4.1 prose text — one of two templates filled in with the
    numerical result, presented in chat for paste into the .docx
    body.
 
