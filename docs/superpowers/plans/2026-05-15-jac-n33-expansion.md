@@ -99,16 +99,16 @@
 - [ ] **Step 0 (AUTHOR TASK): Confirm Apr 2026 I11 MAC wavelength**
 
 Look up the wavelength for the 24 Apr 2026 I11 MAC configuration in the
-proposal document or DLS log book. Write the value (e.g., `0.8265`) into
-`Llunr/n33_expansion/wavelength.txt`. If λ ≠ 0.8265 Å, every code file in
-this plan that hardcodes `WAVELENGTH = 0.8265` must be updated before
+proposal document or DLS log book. Write the value (e.g., `0.826517`) into
+`Llunr/n33_expansion/wavelength.txt`. If λ ≠ 0.826517 Å, every code file in
+this plan that hardcodes `WAVELENGTH = 0.826517` must be updated before
 running. The previous I11 beamtime used 0.826517 Å (per the
 `2026-05-11-reference-phase-sensitivity-design.md` spec); the Apr 2026
 beamtime is presumed to match but must be confirmed.
 
 ```bash
 mkdir -p "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion"
-echo "0.8265  # Apr 2026 I11 MAC — confirmed source: <author fills in>" > \
+echo "0.826517  # Apr 2026 I11 MAC — confirmed source: <author fills in>" > \
     "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion/wavelength.txt"
 cat "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion/wavelength.txt"
 ```
@@ -209,7 +209,7 @@ followed by a tab-separated table `tth\tcounts\terror` with ~150 020 rows.
 The reducer parses the header for metadata (RunNumber, ScanTime, Date,
 Wavelength), reads the numeric table, and emits a 2-column `.xy` file
 (2θ, counts) matching the existing I11 file convention. The wavelength
-defaults to 0.8265 Å (from Task 1 Step 0; override at call site if
+defaults to 0.826517 Å (from Task 1 Step 0; override at call site if
 `wavelength.txt` records a different value) but is overridable per call.
 
 - [ ] **Step 1: Write the failing test**
@@ -502,11 +502,11 @@ from n33_expansion.scripts.capillary_subtract import (
 )
 
 
-WAVELENGTH = 0.8265  # Å, I11 MAC
+WAVELENGTH = 0.826517  # Å, I11 MAC
 
 
 def test_tth_to_q_round():
-    # At 2θ = 90° and λ = 0.8265 Å, Q = (4π/λ) sin(45°) = (4π/0.8265)(√2/2)
+    # At 2θ = 90° and λ = 0.826517 Å, Q = (4π/λ) sin(45°) = (4π/0.826517)(√2/2)
     expected = (4 * np.pi / WAVELENGTH) * np.sin(np.deg2rad(45.0))
     assert tth_to_q(np.array([90.0]), WAVELENGTH)[0] == pytest.approx(expected, rel=1e-9)
 
@@ -671,7 +671,7 @@ from n33_expansion.scripts.capillary_subtract import (
 from n33_expansion.scripts.reduce_dat_to_xy import write_xy
 
 
-WAVELENGTH = 0.8265  # Å — confirm via Llunr/n33_expansion/wavelength.txt (Task 1 Step 0)
+WAVELENGTH = 0.826517  # Å — confirm via Llunr/n33_expansion/wavelength.txt (Task 1 Step 0)
 N33 = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion")
 CAP_XY = N33 / "data/i11_2026Apr_reduced/1437220-mac-summed.xy"
 OUT_DIR = N33 / "phase1_validation"
@@ -778,7 +778,7 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: Confirm wavelength and fill in TEST_SAMPLES**
 
-[AUTHOR TASK] — confirm `WAVELENGTH = 0.8265` Å from Apr 2026 I11 MAC log book or proposal; fill in the 3 `.xy` paths from Step 1.
+[AUTHOR TASK] — confirm `WAVELENGTH = 0.826517` Å from Apr 2026 I11 MAC log book or proposal; fill in the 3 `.xy` paths from Step 1.
 
 - [ ] **Step 4: Run the driver**
 
@@ -922,7 +922,7 @@ def test_apply_capillary_writes_one_xy_per_input(tmp_path):
     np.savetxt(cap_in, np.column_stack([tth, tth * 0 + 50.0]))
 
     out_path = process_sample(
-        sample_in, cap_in, out_dir, wavelength=0.8265
+        sample_in, cap_in, out_dir, wavelength=0.826517
     )
     assert out_path.exists()
     assert out_path.parent == out_dir
@@ -991,7 +991,7 @@ def main() -> None:
     PAPER = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC")
     CAP = N33 / "data/i11_2026Apr_reduced/1437220-mac-summed.xy"
     OUT = N33 / "data/i11_corrected"
-    WAVELENGTH = 0.8265
+    WAVELENGTH = 0.826517
 
     # 6 new (skip the capillary itself)
     new_dir = N33 / "data/i11_2026Apr_reduced"
@@ -1087,7 +1087,7 @@ from xrd_profile import Phase, XRDProfile
 N33 = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion")
 PAPER = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC")
 CIF_DIR = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/xrd_profile/examples/cifs")
-WAVELENGTH = 0.8265
+WAVELENGTH = 0.826517
 
 PRIMARY_REFS = {
     "1437211-mac-summed_cap.xy": ("NWA 7465", "Anorthite.cif"),
@@ -1188,7 +1188,7 @@ from xrd_profile import XRDProfile
 
 N33 = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion")
 PAPER = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC")
-WAVELENGTH = 0.8265
+WAVELENGTH = 0.826517
 
 
 def main() -> None:
@@ -1922,7 +1922,7 @@ from xrd_profile import XRDProfile
 
 PAPER = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC")
 N33 = Path("/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion")
-WAVELENGTH = 0.8265
+WAVELENGTH = 0.826517
 
 # Pick one representative low-r-sensitive sample
 DEMO_SAMPLE = "Tirhert"  # or whatever the author prefers
