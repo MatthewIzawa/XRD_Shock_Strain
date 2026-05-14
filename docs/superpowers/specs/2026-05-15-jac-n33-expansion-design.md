@@ -139,7 +139,7 @@ round before JAC submission.
 - `…/1437220-mac-summed.dat` — blank capillary
 
 All 7 files: I11 MAC, 1800 s scans, 24 Apr 2026, 150 020 2θ points,
-`Wavelength = Not Set` in header (must be confirmed; presumed 0.8265 Å
+`Wavelength = Not Set` in header (must be confirmed; presumed 0.824883 Å
 matching previous I11 beamtime).
 
 ### 4.2 Pre-existing
@@ -164,7 +164,7 @@ FWHM monotonic-with-shock trend before any further commitment.
 **Steps.**
 
 1. **Confirm beamtime wavelength.** Check the 24 Apr 2026 I11 MAC
-   proposal documentation / DLS log book. If λ ≠ 0.8265 Å the
+   proposal documentation / DLS log book. If λ ≠ 0.824883 Å the
    downstream Q-space numerics shift; stop and re-scope.
 2. **Reduce the capillary scan to `.xy` form** matching existing
    I11 file convention. Sanity check: broad amorphous hump only,
