@@ -1,10 +1,10 @@
-# JAC N=33 Expansion Implementation Plan
+# JAC N=32 Expansion Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Integrate the 24 Apr 2026 Diamond Light Source I11 data (4 new samples, 2 lab→synchrotron upgrades, 1 blank capillary) into the JAC manuscript and produce a v2 .docx bundle for a single co-author re-circulation round, ahead of JAC submission.
 
-**Architecture:** Five sequential phases with explicit author-review gates. Phase 1 validates capillary subtraction on 3 test eucrites. Phase 2 produces `survey_results_33samples.csv` and triggers a sanity-check gate. Phase 3 regenerates all data-bearing figures into `Paper1_JAC/paper1_figures/`. Phase 4 updates manuscript prose, tables, cover letter, and submission documents. Phase 5 packages v2 .docx with track changes and a cover note.
+**Architecture:** Five sequential phases with explicit author-review gates. Phase 1 validates capillary subtraction on 3 test eucrites. Phase 2 produces `survey_results_32samples.csv` and triggers a sanity-check gate. Phase 3 regenerates all data-bearing figures into `Paper1_JAC/paper1_figures/`. Phase 4 updates manuscript prose, tables, cover letter, and submission documents. Phase 5 packages v2 .docx with track changes and a cover note.
 
 **Tech Stack:** Python 3.13.9 (Anaconda base env at `C:\Users\Matthew Izawa\anaconda3\python.exe`); numpy, scipy, matplotlib, pymatgen, pytest, python-docx (already in the base env per `xrd_profile/CLAUDE.md`); `xrd_profile` v0.3.x importable from `Llunr/xrd_profile/` (read-only API consumer — no package changes); pandoc for the track-changes .docx diff.
 
@@ -32,20 +32,20 @@
 | `Llunr/n33_expansion/scripts/reduce_dat_to_xy.py` | Convert DLS `.dat` (header + tab-separated 2θ-counts-error) to xrd_profile-readable `.xy` |
 | `Llunr/n33_expansion/scripts/capillary_subtract.py` | High-Q-tail scaling and capillary subtraction; importable as a module |
 | `Llunr/n33_expansion/scripts/phase1_validation.py` | Phase 1 driver: process capillary, subtract from 3 test eucrites, generate diagnostic.png |
-| `Llunr/n33_expansion/scripts/process_all_samples.py` | Phase 2 driver: run xrd_profile on 6 new samples and re-fit PDF for 18 existing |
-| `Llunr/n33_expansion/scripts/build_survey_csv.py` | Aggregate per-sample results into `survey_results_33samples.csv` |
+| `Llunr/n33_expansion/scripts/process_all_samples.py` | Phase 2 driver: run xrd_profile on 6 new samples and re-fit PDF for 17 existing |
+| `Llunr/n33_expansion/scripts/build_survey_csv.py` | Aggregate per-sample results into `survey_results_32samples.csv` |
 | `Llunr/n33_expansion/scripts/build_cross_instrument.py` | Build `cross_instrument_pairs.csv` for Table S2 |
 | `Llunr/n33_expansion/tests/test_reduce_dat.py` | Unit tests for DLS .dat parser |
 | `Llunr/n33_expansion/tests/test_capillary_subtract.py` | Unit tests for scaling and subtraction |
 | `Llunr/n33_expansion/tests/test_build_survey_csv.py` | Unit tests for CSV aggregation row construction |
 | `Llunr/n33_expansion/data/i11_2026Apr_reduced/` | Reduced `.xy` from new `.dat` (7 files) |
-| `Llunr/n33_expansion/data/i11_corrected/` | Capillary-subtracted `.xy` (24 files: 6 new + 18 existing) |
+| `Llunr/n33_expansion/data/i11_corrected/` | Capillary-subtracted `.xy` (23 files: 6 new + 17 existing) |
 | `Llunr/n33_expansion/phase1_validation/diagnostic.png` | Phase 1 GO/PAUSE evidence figure |
 | `Llunr/n33_expansion/phase1_validation/decision_note.md` | Phase 1 decision record |
 | `Llunr/n33_expansion/results/per_sample/*.json` | Per-sample xrd_profile output for 6 new analyses |
-| `Llunr/n33_expansion/results/per_sample_pdf_refits/*.json` | PDF-only refit output for 18 existing I11 samples |
+| `Llunr/n33_expansion/results/per_sample_pdf_refits/*.json` | PDF-only refit output for 17 existing I11 samples |
 | `Llunr/n33_expansion/results/cross_instrument_pairs.csv` | Lab Co + I11 W-A values for NWA 5751 and Talampaya |
-| `Paper1_JAC/survey_results_33samples.csv` | Final canonical per-sample CSV |
+| `Paper1_JAC/survey_results_32samples.csv` | Final canonical per-sample CSV |
 | `Paper1_JAC/paper1_figures/*.png` | Regenerated figures |
 | `Paper1_JAC/manuscript_paper1_JAC.md` | Updated manuscript |
 | `Paper1_JAC/table1_sample_inventory.md` | Updated Table 1 source |
@@ -151,7 +151,7 @@ git-tracked).
 
 ## Goal
 
-Produce `Paper1_JAC/survey_results_33samples.csv` and supporting
+Produce `Paper1_JAC/survey_results_32samples.csv` and supporting
 figures for a v2 manuscript with capillary subtraction, 4 new
 samples, and 2 lab→synchrotron upgrades.
 
@@ -173,7 +173,7 @@ Raw DLS data: `Llunr/HED_XRD_Shock/New_DLS_20260513/`
 - 1437211–1437215, 1437218: 6 sample scans
 - 1437220: blank capillary
 
-Existing I11 data: per `Paper1_JAC/survey_results_29samples.csv`.
+Existing I11 data: per `Paper1_JAC/survey_results_28samples.csv`.
 
 ## Outputs
 
@@ -192,11 +192,11 @@ git log --oneline -1 -- docs/superpowers/plans/2026-05-15-jac-n33-expansion.md
 ```
 
 Expected: a single recent commit line with subject
-"Add JAC N=33 expansion plan: …". If absent, run
+"Add JAC N=32 expansion plan: …". If absent, run
 
 ```bash
 git add docs/superpowers/plans/2026-05-15-jac-n33-expansion.md
-git commit -m "Add JAC N=33 expansion plan: 5-phase validate-first integration"
+git commit -m "Add JAC N=32 expansion plan: 5-phase validate-first integration"
 ```
 
 ---
@@ -624,14 +624,14 @@ Expected: 3 passed.
 
 This is a one-shot driver: load capillary + 3 test eucrites (Tirhert S1, NWA 6477 S3, JaH 626 S6), apply subtraction, run xrd_profile PDF on each, plot a 4-panel diagnostic figure.
 
-**Author input needed before running:** the I11 `.xy` paths for the 3 test eucrites. Use `Paper1_JAC/survey_results_29samples.csv` or inspect the existing I11 data directory.
+**Author input needed before running:** the I11 `.xy` paths for the 3 test eucrites. Use `Paper1_JAC/survey_results_28samples.csv` or inspect the existing I11 data directory.
 
 - [ ] **Step 1: Identify existing I11 .xy paths for Tirhert, NWA 6477, JaH 626**
 
 ```bash
 "/c/Users/Matthew Izawa/anaconda3/python.exe" -c "
 import csv
-with open('/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_29samples.csv') as f:
+with open('/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_28samples.csv') as f:
     r = csv.DictReader(f)
     for row in r:
         if row.get('sample_id') in ('Tirhert', 'NWA 6477', 'JaH 626'):
@@ -644,7 +644,7 @@ Expected: 3 lines, one per sample, showing the source `.xy` path (or whatever fi
 If `source_path` is not a column, inspect the CSV header:
 
 ```bash
-head -1 "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_29samples.csv"
+head -1 "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_28samples.csv"
 ```
 
 and adapt the field name. The plan author has not seen the CSV columns directly; the implementing agent should record the actual paths in `Llunr/n33_expansion/phase1_validation/decision_note.md`.
@@ -859,17 +859,17 @@ If PAUSE: the implementing agent halts and asks the user how to proceed (spec §
 ### Task 7: Verify pre-expansion inventory against the canonical CSV
 
 **Files:**
-- Read: `Paper1_JAC/survey_results_29samples.csv`
+- Read: `Paper1_JAC/survey_results_28samples.csv`
 - Output: a printed inventory table (no file written)
 
 [PROCEDURAL]
 
-The spec assumes 7 Lab Cu + 18 I11 + 4 Lab Co = 29, with the I11 breakdown of 12 HED + 6 non-HED. Verify this against the CSV before generating the 33-sample CSV.
+The spec assumes 7 Lab Cu + 17 I11 + 4 Lab Co = 28 (NOTE: original spec said "29" — that was a prose miscount; the CSV has 28 rows; see decision_note.md), with the I11 breakdown of 11 HED + 6 non-HED. Verify this against the CSV before generating the 32-sample CSV.
 
 - [ ] **Step 1: Read CSV column headers**
 
 ```bash
-head -1 "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_29samples.csv"
+head -1 "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_28samples.csv"
 ```
 
 Record the exact column names that identify `sample`, `instrument`, and `group` (e.g., HED / Lunar / OC / CC / Achondrite / Martian).
@@ -880,7 +880,7 @@ Record the exact column names that identify `sample`, `instrument`, and `group` 
 "/c/Users/Matthew Izawa/anaconda3/python.exe" -c "
 import csv
 from collections import Counter
-with open('/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_29samples.csv') as f:
+with open('/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_28samples.csv') as f:
     rows = list(csv.DictReader(f))
 print('Total rows:', len(rows))
 print('Instruments:', Counter(r.get('instrument') for r in rows))
@@ -893,15 +893,15 @@ for r in rows:
 
 Replace `instrument` / `group` / `sample_id` with the actual column names from Step 1.
 
-Expected: total 29; instruments break into 7 Lab Cu + 18 I11 + 4 Lab Co; the 4 Lab Co samples are NWA 5751, NWA 6013, Talampaya, Tatahouine.
+Expected: total 28; instruments break into 7 Lab Cu + 17 I11 + 4 Lab Co; the 4 Lab Co samples are NWA 5751, NWA 6013, Talampaya, Tatahouine.
 
 - [ ] **Step 3: Resolve any discrepancy**
 
-If totals don't match, halt and update the spec inventory before proceeding. The 33-sample CSV inherits whatever the 29-sample CSV says.
+If totals don't match, halt and update the spec inventory before proceeding. The 32-sample CSV inherits whatever the 28-sample CSV says.
 
 ---
 
-### Task 8: Apply capillary subtraction to all 24 I11 samples
+### Task 8: Apply capillary subtraction to all 23 I11 samples
 
 **Files:**
 - Create: `Llunr/n33_expansion/scripts/apply_capillary_all.py`
@@ -984,9 +984,9 @@ def process_sample(
 
 
 def main() -> None:
-    """Iterate over the 24 I11 samples (6 new + 18 existing).
+    """Iterate over the 23 I11 samples (6 new + 17 existing).
 
-    The 18 existing paths come from `survey_results_29samples.csv`;
+    The 18 existing paths come from `survey_results_28samples.csv`;
     the 6 new from `i11_2026Apr_reduced/`. See the inventory in
     `decision_note.md`.
     """
@@ -1007,7 +1007,7 @@ def main() -> None:
 
     # 18 existing — read from CSV
     existing = []
-    with open(PAPER / "survey_results_29samples.csv") as f:
+    with open(PAPER / "survey_results_28samples.csv") as f:
         for row in csv.DictReader(f):
             if row.get("instrument", "").strip() == "I11":  # field name placeholder; adjust to actual column name from Task 7 Step 1
                 existing.append(Path(row["source_path"]))  # field name placeholder; adjust to actual column name from Task 7 Step 1
@@ -1042,7 +1042,7 @@ cd "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr"
 "/c/Users/Matthew Izawa/anaconda3/python.exe" n33_expansion/scripts/apply_capillary_all.py
 ```
 
-Expected: prints `Processing 6 new + 18 existing = 24 samples`, then 24 lines `<in> → <out>`.
+Expected: prints `Processing 6 new + 17 existing = 23 samples`, then 23 lines `<in> → <out>`.
 
 - [ ] **Step 7: Verify output count**
 
@@ -1165,11 +1165,11 @@ Expected: 6 lines, each showing top-level result keys (W-A, PDF, W-H, etc.).
 
 ---
 
-### Task 10: Re-run PDF first-peak fit on the 18 existing I11 samples
+### Task 10: Re-run PDF first-peak fit on the 17 existing I11 samples
 
 **Files:**
 - Create: `Llunr/n33_expansion/scripts/refit_existing_pdfs.py`
-- Output: 18 JSON files in `Llunr/n33_expansion/results/per_sample_pdf_refits/`
+- Output: 17 JSON files in `Llunr/n33_expansion/results/per_sample_pdf_refits/`
 
 [PROCEDURAL]
 
@@ -1180,7 +1180,7 @@ Same logic as Task 9, but PDF-only (skip W-A and W-H) and using capillary-subtra
 File: `Llunr/n33_expansion/scripts/refit_existing_pdfs.py`
 
 ```python
-"""Re-run PDF first-peak fit on the 18 existing I11 samples with
+"""Re-run PDF first-peak fit on the 17 existing I11 samples with
 capillary-subtracted intensities."""
 from __future__ import annotations
 
@@ -1201,8 +1201,8 @@ def main() -> None:
     out.mkdir(parents=True, exist_ok=True)
     corrected = N33 / "data/i11_corrected"
 
-    # Read existing I11 sample list from the 29-sample CSV
-    with open(PAPER / "survey_results_29samples.csv") as f:
+    # Read existing I11 sample list from the 28-sample CSV
+    with open(PAPER / "survey_results_28samples.csv") as f:
         rows = [r for r in csv.DictReader(f) if r.get("instrument", "").strip() == "I11"]
 
     print(f"Refitting PDFs on {len(rows)} existing I11 samples")
@@ -1278,29 +1278,29 @@ File: `Llunr/n33_expansion/results/new_samples_metadata.md`
 
 ---
 
-### Task 12: Build `survey_results_33samples.csv` via aggregation script
+### Task 12: Build `survey_results_32samples.csv` via aggregation script
 
 **Files:**
 - Create: `Llunr/n33_expansion/scripts/build_survey_csv.py`
 - Create: `Llunr/n33_expansion/tests/test_build_survey_csv.py`
-- Output: `Paper1_JAC/survey_results_33samples.csv`
+- Output: `Paper1_JAC/survey_results_32samples.csv`
 
 [TDD]
 
 The aggregator:
-1. Loads the 29-sample CSV as a baseline.
+1. Loads the 28-sample CSV as a baseline.
 2. Drops the 2 Lab Co rows for NWA 5751 and Talampaya.
-3. Updates the PDF FWHM column for 18 existing I11 rows from `per_sample_pdf_refits/`.
+3. Updates the PDF FWHM column for 17 existing I11 rows from `per_sample_pdf_refits/`.
 4. Adds 4 new rows (NWA 7465, NWA 5478, NWA 7831, NWA 6693) from `per_sample/`.
 5. Adds 2 new rows (NWA 5751, Talampaya) from `per_sample/` (their upgrade entries).
-6. Writes 33 rows to `survey_results_33samples.csv`.
+6. Writes 32 rows to `survey_results_32samples.csv`.
 
 - [ ] **Step 1: Write the failing test**
 
 File: `Llunr/n33_expansion/tests/test_build_survey_csv.py`
 
 ```python
-"""Test the aggregation logic for the 33-sample CSV build."""
+"""Test the aggregation logic for the 32-sample CSV build."""
 from __future__ import annotations
 
 import csv
@@ -1368,7 +1368,7 @@ Expected: FAIL with `ImportError`.
 File: `Llunr/n33_expansion/scripts/build_survey_csv.py`
 
 ```python
-"""Build survey_results_33samples.csv from the 29-sample baseline + new analyses."""
+"""Build survey_results_32samples.csv from the 28-sample baseline + new analyses."""
 from __future__ import annotations
 
 import csv
@@ -1429,14 +1429,14 @@ def build_new_row(sample: str, json_path: Path, template: dict) -> dict:
 
 
 def main() -> None:
-    src = PAPER / "survey_results_29samples.csv"
-    dst = PAPER / "survey_results_33samples.csv"
+    src = PAPER / "survey_results_28samples.csv"
+    dst = PAPER / "survey_results_32samples.csv"
 
     with open(src) as f:
         reader = csv.DictReader(f)
         fields = reader.fieldnames
         rows = list(reader)
-    assert len(rows) == 29, f"expected 29 baseline rows, got {len(rows)}"
+    assert len(rows) == 28, f"expected 28 baseline rows, got {len(rows)}"
 
     template = dict.fromkeys(fields, "")  # for new rows
 
@@ -1451,7 +1451,7 @@ def main() -> None:
     for s in NEW_SAMPLES:
         new_rows.append(build_new_row(s, per_sample / f"{s.replace(' ', '_')}.json", template))
     rows = add_new_rows(rows, new_rows)
-    assert len(rows) == 33, f"final expected 33, got {len(rows)}"
+    assert len(rows) == 32, f"final expected 32, got {len(rows)}"
 
     with open(dst, "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fields)
@@ -1484,13 +1484,13 @@ cd "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr"
 "/c/Users/Matthew Izawa/anaconda3/python.exe" n33_expansion/scripts/build_survey_csv.py
 ```
 
-Expected: `wrote …/survey_results_33samples.csv with 33 rows`. Sanity-check via:
+Expected: `wrote …/survey_results_32samples.csv with 32 rows`. Sanity-check via:
 
 ```bash
-wc -l "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_33samples.csv"
+wc -l "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/survey_results_32samples.csv"
 ```
 
-Expected: 34 (33 rows + 1 header).
+Expected: 33 (32 rows + 1 header).
 
 ---
 
@@ -1524,8 +1524,8 @@ SAMPLES = ["NWA 5751", "Talampaya"]
 
 def main() -> None:
     rows = []
-    # Lab Co values from the 29-sample CSV
-    with open(PAPER / "survey_results_29samples.csv") as f:
+    # Lab Co values from the 28-sample CSV
+    with open(PAPER / "survey_results_28samples.csv") as f:
         for r in csv.DictReader(f):
             if r["sample_id"] in SAMPLES and r["instrument"] == "Lab Co":
                 rows.append({
@@ -1631,7 +1631,7 @@ If any prediction fails, halt and investigate (per spec §11). If all pass, proc
 
 ## Phase 3 — Figure Regeneration
 
-### Task 15: Adapt figure scripts to read the 33-sample CSV
+### Task 15: Adapt figure scripts to read the 32-sample CSV
 
 **Files:**
 - Inspect (read-only): `Paper1_JAC/paper1_figures.py`, `Paper1_JAC/regen_fig2.py`, `Paper1_JAC/fig7_pdf_examples.py`, `Paper1_JAC/figS1_column_length_schematic.py`
@@ -1639,7 +1639,7 @@ If any prediction fails, halt and investigate (per spec §11). If all pass, proc
 
 [PROCEDURAL]
 
-- [ ] **Step 1: Identify which scripts reference `survey_results_29samples.csv`**
+- [ ] **Step 1: Identify which scripts reference `survey_results_28samples.csv`**
 
 ```bash
 cd "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC"
@@ -1653,13 +1653,13 @@ Expected: a list of figure-generating scripts.
 For each script in the grep output, use `Edit` to replace:
 
 ```
-survey_results_29samples.csv
+survey_results_28samples.csv
 ```
 
 with:
 
 ```
-survey_results_33samples.csv
+survey_results_32samples.csv
 ```
 
 Also search for hardcoded `29` counts in titles/labels/legends and replace with `33` (and `seven`/`7` with `eight`/`8` if relevant).
@@ -1841,7 +1841,7 @@ cd "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC"
 
 Open `fig5_*.png`. Verify:
 - Lab Co panel shows 2 samples (Tatahouine, NWA 6013)
-- I11 panel shows 24 samples
+- I11 panel shows 23 samples
 - Cross-instrument pairs for NWA 5751 + Talampaya are visible and visually obvious
 - Caption updated for new counts
 
@@ -2051,13 +2051,13 @@ Date: YYYY-MM-DD
 - [ ] **Step 1: Locate the Abstract section**
 
 ```bash
-grep -n "^## Abstract\|^# Abstract\|29-meteorite" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/manuscript_paper1_JAC.md" | head -5
+grep -n "^## Abstract\|^# Abstract\|28-meteorite" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/manuscript_paper1_JAC.md" | head -5
 ```
 
 - [ ] **Step 2: Apply edits**
 
 Replace:
-- `29-meteorite suite spanning seven parent-body groups` → `33-meteorite suite spanning eight parent-body groups`
+- `28-meteorite suite spanning seven parent-body groups` → `32-meteorite suite spanning eight parent-body groups`
 - Any hardcoded `29` → `33`
 - Any `seven` → `eight` where it refers to group count (do not blindly replace other uses)
 
@@ -2075,7 +2075,7 @@ print(m.group(1) if m else 'not found')
 "
 ```
 
-Expected: abstract reads "33-meteorite suite spanning eight parent-body groups" with the asymmetric-amorphisation language preserved.
+Expected: abstract reads "32-meteorite suite spanning eight parent-body groups" with the asymmetric-amorphisation language preserved.
 
 ---
 
@@ -2302,7 +2302,7 @@ Use `Edit` per occurrence; do not blindly replace because "29" might appear in u
 - [ ] **Step 3: Verify zero hits**
 
 ```bash
-grep -c "29-meteorite\|29 meteorites\|survey of 29\|seven parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/manuscript_paper1_JAC.md"
+grep -c "28-meteorite\|29 meteorites\|survey of 29\|seven parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/manuscript_paper1_JAC.md"
 ```
 
 Expected: 0.
@@ -2361,7 +2361,7 @@ cat "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/table1_sample_
 - Remove the existing Lab Co rows for NWA 5751 and Talampaya
 - Add new I11 rows for NWA 5751 and Talampaya with their updated W-A median column length, Q_max = 14.6, and PDF FWHM
 - Add 4 new I11 rows: NWA 7465, NWA 5478, NWA 7831, NWA 6693 with metadata from Task 11 (use `[AUTHOR INPUT NEEDED]` where lit data is pending)
-- Update PDF FWHM column for the 18 existing I11 rows using values from `n33_expansion/results/per_sample_pdf_refits/*.json`
+- Update PDF FWHM column for the 17 existing I11 rows using values from `n33_expansion/results/per_sample_pdf_refits/*.json`
 
 - [ ] **Step 3: Verify row count**
 
@@ -2450,7 +2450,7 @@ and Talampaya, both measured at Lab Co and I11.
 - [ ] **Step 1: Apply edits**
 
 Replace in `cover_letter.md`:
-- `29-meteorite suite` → `33-meteorite suite`
+- `28-meteorite suite` → `32-meteorite suite`
 - `seven parent-body groups` → `eight parent-body groups`
 
 Do NOT mention capillary subtraction (consistent with abstract decision).
@@ -2458,7 +2458,7 @@ Do NOT mention capillary subtraction (consistent with abstract decision).
 - [ ] **Step 2: Verify**
 
 ```bash
-grep "33-meteorite\|eight parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/submission/cover_letter.md"
+grep "32-meteorite\|eight parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/submission/cover_letter.md"
 ```
 
 ---
@@ -2550,19 +2550,19 @@ The previous cover-letter rewrite (Greek α, no corporate-speak, no date) was no
 - [ ] **Step 1: Read the current cover-letter Python content**
 
 ```bash
-grep -n "def build_cover_letter\|29-meteorite\|seven parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/submission/build_auxiliary_docx.py"
+grep -n "def build_cover_letter\|28-meteorite\|seven parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/submission/build_auxiliary_docx.py"
 ```
 
 - [ ] **Step 2: Update the inline strings**
 
-- `29-meteorite suite` → `33-meteorite suite`
+- `28-meteorite suite` → `32-meteorite suite`
 - `seven parent-body groups` → `eight parent-body groups`
 - Verify Greek α is preserved (Cu Kα, Co Kα).
 
 - [ ] **Step 3: Verify**
 
 ```bash
-grep "33-meteorite\|eight parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/submission/build_auxiliary_docx.py"
+grep "32-meteorite\|eight parent-body" "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/Paper1_JAC/submission/build_auxiliary_docx.py"
 ```
 
 ---
@@ -2644,7 +2644,7 @@ pandoc \
 
 Open the result in Word. Verify:
 - §4.3 capillary "would enable" sentence shows as deleted, new sentence as inserted
-- Abstract `29-meteorite suite` → `33-meteorite suite` shown as edit
+- Abstract `28-meteorite suite` → `32-meteorite suite` shown as edit
 - New rows in Table 1 / Table 2 shown as inserts
 
 ---
