@@ -98,21 +98,22 @@
 
 - [ ] **Step 0 (AUTHOR TASK): Confirm Apr 2026 I11 MAC wavelength**
 
-Look up the wavelength for the 24 Apr 2026 I11 MAC configuration in the
-proposal document or DLS log book. Write the value (e.g., `0.824883`) into
-`Llunr/n33_expansion/wavelength.txt`. If λ ≠ 0.824883 Å, every code file in
-this plan that hardcodes `WAVELENGTH = 0.824883` must be updated before
-running. **Provenance note:** the 2026-05-11-reference-phase-sensitivity-design.md
-spec and the existing Rietveld project files (`HED_XRD_Shock/Rietveld/Tirhert/iter12/`)
-cite λ = 0.826517 Å, which appears to be a refined-parameter artifact (TOPAS output)
-rather than the nominal beamline wavelength. The author confirmed on 2026-05-15 that
-the correct I11 MAC wavelength is 0.824883 Å. Retrace of the 0.826517 → 0.824883
-discrepancy in the Rietveld files and the manuscript Table 1 footnote (currently `λ = 0.8265 Å`)
-is pending and out of scope for this plan.
+The I11 MAC wavelength was recorded by the Diamond beamline team at the time
+of analysis: λ = 0.824883 Å, identical for the 2018 ee17803-1 and Apr 2026
+beamtimes (author-confirmed 2026-05-15). Write this value into
+`Llunr/n33_expansion/wavelength.txt`. **Provenance note:** the
+`2026-05-11-reference-phase-sensitivity-design.md` spec and the existing
+Rietveld project files (`HED_XRD_Shock/Rietveld/Tirhert/iter12/`,
+`phase_manifest.yaml`, etc.) cite λ = 0.826517 Å, which is an incorrect value
+whose source of error is pending retrace. The manuscript Table 1 footnote
+(currently `λ = 0.8265 Å` at `Paper1_JAC/manuscript_paper1_JAC.md` line 237)
+and the §2.1.1 example code (line 61) also show the incorrect 0.8265; Phase 4
+of this plan must fix both. The Rietveld retrace and any consequences for
+existing refinements are out of scope for this plan.
 
 ```bash
 mkdir -p "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion"
-echo "0.824883  # Apr 2026 I11 MAC, author-confirmed 2026-05-15. NB: Rietveld project files and 2026-05-11-reference-phase-sensitivity-design.md cite 0.826517 — apparent refined-parameter artifact; retrace pending." > \
+echo "0.824883  # I11 MAC wavelength recorded by Diamond beamline team at analysis. Identical for the 2018 ee17803-1 and Apr 2026 (Izawa_achondrites_20260424) beamtimes; author-confirmed 2026-05-15. NB: HED_XRD_Shock/Rietveld/ project files and 2026-05-11-reference-phase-sensitivity-design.md cite 0.826517 — incorrect value, source of error pending retrace." > \
     "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion/wavelength.txt"
 cat "/c/Users/Matthew Izawa/Documents/Dan Applin/Llunr/n33_expansion/wavelength.txt"
 ```
