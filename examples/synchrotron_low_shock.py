@@ -5,32 +5,31 @@ Analyses Tirhert (unbrecciated eucrite, fresh fall, low shock) from
 Diamond Light Source beamline I11 (15 keV, lambda = 0.826517 angstroms,
 10-148 deg 2-theta, 0.001 deg steps).
 
-Demonstrates the v0.3.0 Phase API: anorthite via from_lattice_params
-(refined coordinates inline), pigeonite via from_cif. The legacy
-v0.2.0 version (with inline build_ref helper) is preserved at
+Demonstrates the v0.3.0 Phase API on bundled fixtures: anorthite via
+from_lattice_params (refined coordinates inline), pigeonite via
+from_cif using the bundled Pigeonite CIF. Uses the same bundled
+Tirhert subset as multi_phase_olivine.py. The legacy v0.2.0 version
+(with inline build_ref helper) is preserved at
 examples/legacy/synchrotron_low_shock.py.
 
-Data: DLS beamtime ee17803-1, Izawa & Jephcoat (2018).
+Data: DLS beamtime ee17803-1, Izawa & Jephcoat (2018). The bundled
+fixture is a subset (~23k points) of the full pattern; see
+examples/data/README.md for provenance.
 """
+from pathlib import Path
 
 import numpy as np
 from xrd_profile import XRDProfile
 from xrd_profile.phases import Phase
 
-LAMBDA = 0.826517
-DATA_PATH = (r'C:\Users\Matthew Izawa\Desktop\111 Backup 20220530'
-              r'\transfer\IPM\2018\ee17803-1\processing'
-              r'\Tirhert_summed_0001.xye')
-PIGEONITE_CIF = (r'C:\Users\Matthew Izawa\Desktop\Ye olde seagate'
-                  r'\Big Bad Bucket of Backups\transfer\Mar 2016'
-                  r'\The New Era - HoserLab\Rietveld\Structures'
-                  r'\CIF files\Pigeonite - Morimoto.cif')
+HERE = Path(__file__).parent
+DATA = HERE / 'data' / 'tirhert_subset.xy'
+CIFS = HERE / 'cifs'
+LAMBDA = 0.826517  # I11 at 15 keV — matches the bundled fixture
 
 # ── Load data ──
-data = np.loadtxt(DATA_PATH)
-tt_full, i_full = data[:, 0], data[:, 1]
-mask = (tt_full >= 10) & (tt_full <= 148)
-tt, intensity = tt_full[mask], i_full[mask]
+data = np.loadtxt(DATA)
+tt, intensity = data[:, 0], data[:, 1]
 
 Q_max = 4 * np.pi * np.sin(np.radians(tt.max() / 2)) / LAMBDA
 print(f"Tirhert (low-shock eucrite)")
@@ -53,7 +52,7 @@ anorthite = Phase.from_lattice_params(
     ],
     name='Anorthite',
 )
-pigeonite = Phase.from_cif(PIGEONITE_CIF, name='Pigeonite')
+pigeonite = Phase.from_cif(CIFS / 'Pigeonite.cif', name='Pigeonite')
 print(f"\nAnorthite reference: {len(anorthite.get_ref_peaks(LAMBDA))} reflections")
 print(f"Pigeonite reference: {len(pigeonite.get_ref_peaks(LAMBDA))} reflections")
 
@@ -156,7 +155,8 @@ try:
     fig.suptitle('Tirhert (low-shock eucrite): synchrotron multi-phase analysis',
                  fontsize=13)
     fig.tight_layout()
-    fig.savefig('synchrotron_low_shock_example.png', dpi=150)
-    print("\nFigure saved to synchrotron_low_shock_example.png")
+    out_png = HERE / 'synchrotron_low_shock_example.png'
+    fig.savefig(out_png, dpi=150)
+    print(f"\nFigure saved to {out_png}")
 except Exception as e:
     print(f"\nPlotting skipped: {e}")

@@ -48,20 +48,24 @@ results = profile.run_all(
 )
 
 # ── Print summary ──
+# run_all returns dicts keyed by phase name when phases are supplied,
+# so each method's results are indexed per phase.
 for phase_name in ['Forsterite', 'Pigeonite']:
     if phase_name in results['wh']:
         wh = results['wh'][phase_name]
         wa = results['wa'][phase_name]
+        sch = results['scherrer'][phase_name]
         print(f"\n--- {phase_name} ---")
-        print(f"  W-H: D = {wh.get('crystallite_size', float('nan')):.0f} A, "
+        print(f"  W-H:      D = {wh.get('crystallite_size', float('nan')):.0f} A, "
               f"strain = {wh.get('strain', float('nan')):.5f}")
-        print(f"  W-A: D_median = "
+        print(f"  W-A:      D_median = "
               f"{wa.get('median_crystallite_size', float('nan')):.0f} A, "
               f"families = {wa.get('n_families', 0)}")
+        print(f"  Scherrer: D_mean = {sch.get('mean_size', float('nan')):.0f} A "
+              f"(n_peaks = {len(sch.get('sizes', []))})")
 
 print(f"\nPDF Q_max = {results['pdf']['Q_max']:.2f} /A, "
       f"dr = {np.pi / results['pdf']['Q_max']:.3f} A")
-print(f"Scherrer mean size = {results['scherrer']['mean_size']:.0f} A")
 
 # ── 4-panel figure ──
 fig, axes = plt.subplots(2, 2, figsize=(13, 9))
