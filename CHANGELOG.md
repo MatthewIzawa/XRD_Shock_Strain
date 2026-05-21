@@ -4,6 +4,57 @@ All notable changes to xrd_profile are documented here. Format
 follows [Keep a Changelog](https://keepachangelog.com/), versioning
 follows [SemVer](https://semver.org/).
 
+## [0.4.2] — 2026-05-22
+
+### Fixed
+- `examples/multi_phase_olivine.py` now runs end-to-end. The Scherrer
+  summary at the end of the script was indexing `results['scherrer']`
+  as if it were a flat dict, but `XRDProfile.run_all(..., phases=[...])`
+  returns Scherrer results keyed by phase name. Moved the Scherrer
+  summary into the existing per-phase print loop alongside W-H and
+  W-A, so the script now completes through `fig.savefig(...)` and
+  produces `multi_phase_olivine_example.png`.
+
+### Changed
+- Moved `plots.py` from the repository root into the package at
+  `xrd_profile/plots.py` so the documented import
+  `from xrd_profile.plots import ...` resolves correctly. No public
+  API change — the module was intentionally not exported via
+  `xrd_profile.__init__.__all__` and remains so.
+- `examples/synchrotron_low_shock.py` now reads the bundled
+  `examples/data/tirhert_subset.xy` fixture and the bundled
+  `examples/cifs/Pigeonite.cif`, with `Path(__file__).parent`-based
+  output paths. Previously it referenced hardcoded paths to a
+  developer-local DLS backup directory, blocking reproduction by
+  reviewers.
+
+### Removed
+- `examples/lab_lunar_meteorite.py` and `examples/synchrotron_high_shock.py`
+  (with their stale .png outputs). Both referenced hardcoded
+  developer-local data paths. The kept examples
+  (`multi_phase_olivine.py`, `synchrotron_low_shock.py`,
+  `instrumental_correction.py`) cover W-H + W-A + PDF + Scherrer +
+  Stokes deconvolution against an instrumental standard, all
+  end-to-end runnable from a fresh checkout.
+- `docs/superpowers/` (internal planning specs and plans) and
+  `CLAUDE.md` (project-local agent-instruction notes) removed from
+  the public tree and added to `.gitignore`. Both are local-maintenance
+  artefacts, not part of the package or its scientific contribution.
+  Files remain on local disk for ongoing reference; design provenance
+  remains in git history.
+
+### Added
+- `plots.py` module: `GROUP_COLOUR`, `GROUP_MARKER`, `GROUP_ORDER`,
+  and `SOURCE_FILL` registries gain an `'Ungrouped'` category
+  (dark-grey `#4d4d4d`, `'X'` marker) for ungrouped achondrites such
+  as NWA 6693 (CC-associated impact melt).
+
+### Notes
+- No public API changes; v0.4.0 / v0.4.1 strict-additive contract is
+  preserved. All v0.4.x golden snapshots remain valid; existing
+  callers (W-H / W-A / PDF / Scherrer / instrumental) are
+  byte-identical.
+
 ## [0.4.1] — 2026-05-07
 
 ### Fixed
