@@ -9,3 +9,7 @@ build/
 .pytest_cache/
 .worktrees/
 site/
+
+# Internal planning / design documents (kept on local disk, not in
+# the public tree). See git history for the design provenance.
+docs/superpowers/
