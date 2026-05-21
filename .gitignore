@@ -10,6 +10,8 @@ build/
 .worktrees/
 site/
 
-# Internal planning / design documents (kept on local disk, not in
-# the public tree). See git history for the design provenance.
+# Internal planning / design documents and agent-instruction notes
+# (kept on local disk, not in the public tree). See git history for
+# the design provenance.
 docs/superpowers/
+/CLAUDE.md
